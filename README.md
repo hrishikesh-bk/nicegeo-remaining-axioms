@@ -2,6 +2,13 @@
 
 A typechecker kernel for a proof system based on the formal system **E** (Euclid’s Elements). The kernel is implemented in OCaml using Dune and is intended to support dependent type theory with built-in geometric types and a decidable definitional equality.
 
+### Exploratory ideas
+
+- Dependent type theory (no inductive types)
+- Built-in types like Point and Circle
+- Built-in object that satisfies the axioms of the non-negative part of a linearly ordered abelian group
+- **Type checker:** infer type; decide definitional equality
+
 ---
 
 ## Project structure
