@@ -66,21 +66,63 @@ let rec inferType (env : environment) (localCtx : localcontext) (t : term) : ter
 
 let mk_axioms_env () =
   let env = Hashtbl.create 16 in
+  (* Built-in geometric types *)
   Hashtbl.add env "Point" (Sort 1);
   Hashtbl.add env "Line" (Sort 1);
   Hashtbl.add env "Circle" (Sort 1);
+  (* Empty: Type — the empty type (no inhabitants); used for negation (¬P = P -> Empty) *)
+  Hashtbl.add env "Empty" (Sort 1);
+  (* Empty.elim: (C : Type) -> Empty -> C — ex falso quodlibet: from a proof of Empty, derive any C *)
+  let empty_elim_type =
+    (* (C : Type) *)
+    Forall (Sort 1,
+      (* (e : Empty) -> C *)
+      Forall (Const "Empty", Bvar 1))
+  in
+  Hashtbl.add env "Empty.elim" empty_elim_type;
 
-  Hashtbl.add env "Exists.elim" (
-    Forall (Sort 1, (* A: Type *)
-    Forall (Forall (Bvar 0, Sort 0), (* p: A -> Prop *)
-    Forall (Sort 0, (* b: Prop *)
-    Forall (App (App (Const "Exists", Bvar 2), Bvar 1), (* e: Exists A p *)
-    Forall ( (* h: Forall (a: A) (Forall (App p a) b) *)
-      Forall (Bvar 3, (* a: A *)
-      Forall (App (Bvar 3, Bvar 0), (* App p a *)
-      Bvar 3)), (* b *)
-    Bvar 2 (* b *)
-  ))))));
+  (* And: (A : Prop) -> (B : Prop) -> Prop — conjunction of two propositions *)
+  let and_type =
+    Forall (Sort 0, Forall (Sort 0, Sort 0))
+  in
+  Hashtbl.add env "And" and_type;
+
+  (* And.intro: (A : Prop) -> (B : Prop) -> (a : A) -> (b : B) -> And A B *)
+  let and_intro_type =
+    Forall (Sort 0,
+      Forall (Sort 0,
+        Forall (Bvar 1, (* A *)
+          Forall (Bvar 2, (* B *)
+            App (App (Const "And", Bvar 3), Bvar 2)))))
+  in
+  Hashtbl.add env "And.intro" and_intro_type;
+
+  (* And.elim: (A : Prop) -> (B : Prop) -> (C : Type) -> (f : A -> B -> C) -> (h : And A B) -> C *)
+  let and_elim_type =
+    Forall (Sort 0,
+      Forall (Sort 0,
+        Forall (Sort 1,
+          Forall (Forall (Bvar 4, Forall (Bvar 3, Bvar 2)),
+            Forall (App (App (Const "And", Bvar 4), Bvar 3), Bvar 2)))))
+  in
+  Hashtbl.add env "And.elim" and_elim_type;
+
+  (* Exists.elim from main branch:
+     (A : Type) -> (p : A -> Prop) -> (b : Prop) ->
+     (e : Exists A p) ->
+     (h : Forall (a : A), p a -> b) ->
+     b
+  *)
+  Hashtbl.add env "Exists.elim"
+    (Forall (Sort 1,                         (* A : Type *)
+      Forall (Forall (Bvar 0, Sort 0),       (* p : A -> Prop *)
+        Forall (Sort 0,                      (* b : Prop *)
+          Forall (App (App (Const "Exists", Bvar 2), Bvar 1),  (* e : Exists A p *)
+            Forall (
+              Forall (Bvar 3,                (* a : A *)
+                Forall (App (Bvar 4, Bvar 0), (* p a *)
+                  Bvar 3)),                  (* b *)
+              Bvar 2))))));                  (* result: b *)
 
   env
 
