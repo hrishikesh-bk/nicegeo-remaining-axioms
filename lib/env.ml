@@ -8,16 +8,15 @@ let application_multiple_arguments (func: term) (args: term list): term =
     func
     args
 
-    (*
 let type0 = Sort 0                 (* "Type" *)
 let pi (a : term) (b : term) = Forall (a, b)  (* Π (_ : a), b *)
 let app2 f x y = App (App (f, x), y)
 let exists_ty : term =
-  pi type0
+  pi (Sort 1)
     (pi (pi (Bvar 0) type0)   (* B : A -> Type *)
         type0)                (* Exists A B : Type *)
 let exists_intro_ty : term =
-  pi type0
+  pi (Sort 1)
     (pi (pi (Bvar 0) type0)          (* B : A -> Type *)
       (pi (Bvar 1)                   (* a : A   (A is Bvar 1 here) *)
         (pi (App (Bvar 1, Bvar 0))   (* b : B a *)
@@ -25,7 +24,7 @@ let exists_intro_ty : term =
 
 let add_exists (env : environment) : unit =
   Hashtbl.replace env "Exists" exists_ty;
-  Hashtbl.replace env "Exists.intro" exists_intro_ty*)
+  Hashtbl.replace env "Exists.intro" exists_intro_ty
 
 let mk_axioms_env () =
   let env = Hashtbl.create 16 in
@@ -33,7 +32,7 @@ let mk_axioms_env () =
   Hashtbl.add env "Point" (Sort 1);
   Hashtbl.add env "Line" (Sort 1);
   Hashtbl.add env "Circle" (Sort 1);
-  (*add_exists env;*)
+  add_exists env;
   (* Empty: Type — the empty type (no inhabitants); used for negation (¬P = P -> Empty) *)
   Hashtbl.add env "Empty" (Sort 1);
   (* Empty.elim: (C : Type) -> Empty -> C — ex falso quodlibet: from a proof of Empty, derive any C *)

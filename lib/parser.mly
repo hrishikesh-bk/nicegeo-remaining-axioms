@@ -1,13 +1,17 @@
 %token <string> IDENT
 %token <string> CONST
 %token FUN FORALL ARROW COLON LPAREN RPAREN TYPE PROP EOF
-%token CLAIM PROOF
-%start <Term.term * Term.term> main
+%token THEOREM AXIOM DEFEQ
+%start <Decl.declaration list> main
 %%
 
 main:
-  | CLAIM claim_term = term PROOF proof_term = term EOF
-    { (claim_term, proof_term) }
+  | decls = list(declaration) EOF { decls }
+
+declaration:
+  | AXIOM name = IDENT COLON ty = term { Decl.Axiom (name, ty) }
+  | THEOREM name = IDENT COLON ty = term DEFEQ proof = term
+    { Decl.Theorem (name, ty, proof) }
 
 term:
   | t = app_term { t }

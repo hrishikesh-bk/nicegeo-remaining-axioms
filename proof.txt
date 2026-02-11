@@ -1,5 +1,11 @@
-Claim:
-Point -> Point
+Axiom fake_prop1 : (a : Point) -> (b : Point) -> (ab : Point -> Empty) -> 
+Exists Point (fun (c : Point) =>
+    And (Eq Len (Length a b) (Length a c))
+        (Eq Len (Length b c) (Length b a)))
 
-Proof:
-fun (x : Point) => x
+Theorem prop1 :
+(a : Point) -> (b : Point) -> (ab : Point -> Empty) -> 
+Exists Point (fun (c : Point) =>
+    And (Eq Len (Length a b) (Length a c))
+        (Eq Len (Length b c) (Length b a)))
+:= fake_prop1
