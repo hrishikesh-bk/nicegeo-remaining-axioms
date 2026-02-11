@@ -255,6 +255,13 @@ let test_axioms_app () =
     assert false
   with Failure _ -> ()
 
+let test_exists_constants_lookup () =
+  let env = mk_axioms_env () in
+  let lctx = Hashtbl.create 16 in
+  (* Check that the constants are registered with the expected types *)
+  assert (inferType env lctx (Const "Exists") = exists_ty);
+  assert (inferType env lctx (Const "Exists.intro") = exists_intro_ty)
+
 let () =
   (* Taken from https://stackoverflow.com/questions/65868770/lack-of-information-when-ocaml-crashes#comment128358969_65873074,
   turns on stack traces *)
@@ -269,6 +276,7 @@ let () =
   test_subst_bvar ();
   test_rebind_bvar ();
   test_infer_function_application ();
+  test_exists_constants_lookup ();
   test_app_multiarg ();
   test_empty_constants ();
   test_and_constants ();
