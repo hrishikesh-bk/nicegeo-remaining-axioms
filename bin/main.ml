@@ -39,5 +39,9 @@ let () =
   let env = getEnv in
 
   (* Process proof.txt *)
-  List.fold_left (fun _ decl -> addDeclaration decl env) () decls;
+  let all_decls_good = List.fold_left (fun x decl -> try addDeclaration decl env; x with Failure msg -> print_endline ("Error adding declaration: " ^ msg); false) true decls in
+  if not all_decls_good then begin
+    print_endline "Error(s) encountered while processing proof file. Exiting.";
+    exit 1
+  end;
   print_endline "Valid proofs!"
