@@ -5,10 +5,13 @@ type declaration =
     | Theorem of string * term * term
     | Axiom of string * term
 
-let convertFvarToConst (t : term) : term =
+let rec convertFvarToConst (t : term) : term =
   match t with
+  | Const _ | Bvar _ | Sort _ -> t
   | Fvar n -> Const n
-  | _ -> t
+  | Lam (dom, body) -> Lam (convertFvarToConst dom, convertFvarToConst body)
+  | Forall (dom, body) -> Forall (convertFvarToConst dom, convertFvarToConst body)
+  | App (func, arg) -> App (convertFvarToConst func, convertFvarToConst arg)
 
 let convertDeclFvarToConst (decl : declaration) : declaration =
   match decl with
