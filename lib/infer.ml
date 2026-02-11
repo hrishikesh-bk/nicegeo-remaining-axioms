@@ -44,33 +44,18 @@ let gen_new_fvar_name () : string =
   incr fvar_counter;
   name
 
-(* Reduce the given term as much as possible. *)
-let rec reduce (env : environment) (t : term) : term =
-    match t with
-    | Const name -> Const name
-    | Fvar name -> Fvar name
-    | Bvar idx -> Bvar idx
-    | App (func, arg) ->
-        let normalFunc = reduce env func in
-        let normalArg = reduce env arg in
-        (match normalFunc with
-        | Lam (_, body) ->
-            let body' = subst_bvar body 0 normalArg in
-            reduce env body'
-        | _ -> App (normalFunc, normalArg))
-    | Lam (dom, body) -> Lam (reduce env dom, reduce env body)
-    | Forall (dom, body) -> Forall (reduce env dom, reduce env body)
-    | Sort lvl -> Sort lvl
+let rec term_to_string (t : term) : string =
+  match t with
+  | Const name -> "Const " ^ name
+  | Sort level -> "Sort " ^ string_of_int level
+  | Fvar name -> "Fvar " ^ name
+  | Bvar idx -> "Bvar " ^ string_of_int idx
+  | Lam (dom, body) -> "Lam (" ^ term_to_string dom ^ ", " ^ term_to_string body ^ ")"
+  | Forall (dom, body) -> "Forall (" ^ term_to_string dom ^ ", " ^ term_to_string body ^ ")"
+  | App (f, a) -> "App (" ^ term_to_string f ^ ", " ^ term_to_string a ^ ")"
 
-(* Two terms are definitionally equal if once fully reduced
-  they are literally equal. *)
-let isDefEq (env : environment) (t1 : term) (t2 : term) : bool =
-    (reduce env t1) = (reduce env t2)
-
-let isSort (env : environment) (t : term) : bool =
-  match reduce env t with
-  | Sort _ -> true
-  | _ -> false
+let context_to_string (ctx : localcontext) : string =
+  Hashtbl.fold (fun k v acc -> acc ^ k ^ " : " ^ term_to_string v ^ "\n") ctx ""
 
 let rec inferType (env : environment) (localCtx : localcontext) (t : term) : term =
   match t with
@@ -90,12 +75,29 @@ let rec inferType (env : environment) (localCtx : localcontext) (t : term) : ter
     let inferred_arg_type = inferType env localCtx arg in
     match func_type with
       | Forall (expected_arg_type, return_type) -> 
-        if isDefEq env expected_arg_type inferred_arg_type then
+        if isDefEq env localCtx expected_arg_type inferred_arg_type then
           (* The actual type of the function application can depend on the
           actual value that it's evaluated at so we need to substitute the arg
           for any bvars referring to this arg in the return_type. *)
           subst_bvar return_type 0 arg
-        else failwith "Function called with invalid argument type"
+        else 
+          let msg = 
+            Printf.sprintf 
+              "Function called with invalid argument type.\n\
+               Local Context:\n%s\n\
+               Term: %s\n\
+               Func: %s\n\
+               Arg: %s\n\n\
+               Expected Arg Type: %s\n\
+               Inferred Arg Type: %s\n"
+              (context_to_string localCtx)
+              (term_to_string t)
+              (term_to_string func)
+              (term_to_string arg)
+              (term_to_string expected_arg_type)
+              (term_to_string inferred_arg_type)
+          in
+          failwith msg
       | _ -> failwith "Tried to apply non-function to an argument"
   )
   | Lam (domainType, body) -> (
@@ -136,6 +138,69 @@ let rec inferType (env : environment) (localCtx : localcontext) (t : term) : ter
         )
         | (Sort _, _) -> failwith "Return type of a Forall must be a sort"
         | (_, Sort _) -> failwith "Domain type of a Forall must be a sort"
-        | _ -> failwith "Domain and return types of a Forall must be sorts"
+        | _ -> 
+          let msg = 
+            Printf.sprintf 
+              "Domain and return types of a Forall must be sorts.\n\
+               Local Context:\n%s\n\
+               Term: %s\n\
+               Domain Type Sort: %s\n\
+               Return Type Sort: %s\n\n"
+              (context_to_string localCtx)
+              (term_to_string t)
+              (term_to_string domainTypeType)
+              (term_to_string returnTypeType)
+          in
+          failwith msg
     )
   | Sort level -> Sort (level + 1)
+
+and isDefEq (env : environment) (localCtx : localcontext) (t1 : term) (t2 : term) : bool =
+  let t1_reduced = reduce env localCtx t1 in
+  let t2_reduced = reduce env localCtx t2 in
+  t1_reduced = t2_reduced
+
+and reduce (env : environment) (localCtx : localcontext) (t : term) : term =
+  match t with
+  | App (Lam (domainType, body), arg) -> (* beta reduction i think *)
+      let arg_type = inferType env localCtx arg in
+      if domainType = arg_type then
+        let substed_body = subst_bvar body 0 arg in
+        reduce env localCtx substed_body
+      else
+        failwith "Function called with invalid argument type during reduction"
+  | App (func, arg) -> 
+      let reduced_func = reduce env localCtx func in
+      let reduced_arg = reduce env localCtx arg in
+      App (reduced_func, reduced_arg)
+  | Lam (domainType, body) -> 
+    (* need to subst fvar *)
+    let new_fvar_name = gen_new_fvar_name () in
+    let domainTypeReduced = reduce env localCtx domainType in
+    let newLocalCtx = 
+      let t = Hashtbl.copy localCtx in
+      Hashtbl.replace t new_fvar_name domainTypeReduced;
+      t
+    in
+    let substed_body = subst_bvar body 0 (Fvar new_fvar_name) in
+    let bodyReduced = reduce env newLocalCtx substed_body in
+    Lam (domainTypeReduced, rebind_bvar bodyReduced 0 new_fvar_name)
+  | Forall (domainType, returnType) -> 
+    let new_fvar_name = gen_new_fvar_name () in
+    let domainTypeReduced = reduce env localCtx domainType in
+    let newLocalCtx = 
+      let t = Hashtbl.copy localCtx in
+      Hashtbl.replace t new_fvar_name domainTypeReduced;
+      t
+    in
+    let substed_return_type = subst_bvar returnType 0 (Fvar new_fvar_name) in
+    let returnTypeReduced = reduce env newLocalCtx substed_return_type in
+    Forall (domainTypeReduced, rebind_bvar returnTypeReduced 0 new_fvar_name)
+  | _ -> t
+
+and isSort (env : environment) (t : term) : bool =
+  match reduce env (Hashtbl.create 0) t with
+  | Sort _ -> true
+  | _ -> false
+
+

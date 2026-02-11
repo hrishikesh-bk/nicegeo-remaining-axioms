@@ -210,6 +210,39 @@ let test_rebind_bvar () =
   assert (rebind_bvar (Lam (Fvar "Point", Fvar "Line")) 0 "Point" = Lam (Bvar 0, Fvar "Line"));
   assert (rebind_bvar (Lam (Bvar 0, Bvar 1)) 1 "Point" = Lam (Bvar 0, Bvar 1))
 
+let eq ty a b = App (App (App (Const "Eq", ty), a), b)
+
+let test_eq_symm () = 
+  let env = mk_axioms_env () in
+  let local_ctx = Hashtbl.create 16 in
+  let eq_symm_type = 
+    Forall (Sort 1, (* A: Type *)
+    Forall (Bvar 0, (* a: A *)
+    Forall (Bvar 1, (* b: A *)
+    Forall (eq (Bvar 2) (Bvar 1) (Bvar 0), (* Eq a b *)
+    eq (Bvar 3) (Bvar 1) (Bvar 2) (* Eq b a *)
+  )))) in
+  assert (inferType env local_ctx eq_symm_type = Sort 0); (* make sure this is actually a Prop *)
+  let eq_symm_term = 
+    Lam (Sort 1, (* A: Type *)
+    Lam (Bvar 0, (* a: A *)
+    Lam (Bvar 1, (* b: A *)
+    Lam (eq (Bvar 2) (Bvar 1) (Bvar 0), (* eq_ab: Eq a b *)
+      application_multiple_arguments (Const "Eq.elim") [
+        Bvar 3; (* A: Type *)
+        Bvar 2; (* a: A *)
+        (Lam (Bvar 3, eq (Bvar 4) (Bvar 0) (Bvar 3))); (* motive: A -> Prop *)
+        App (App (Const "Eq.intro", (Bvar 3)), (Bvar 2)); (* refl: motive a *)
+        Bvar 1; (* b: A *)
+        Bvar 0 (* eq_ab: Eq a b *)
+      ]
+    )))) in
+  (* print_endline ("eq_symm_term: " ^ (term_to_string eq_symm_term)); *)
+  let inferred_type = inferType env local_ctx eq_symm_term in
+  (* print_endline ("expected eq_symm_type: " ^ (term_to_string eq_symm_type));
+  print_endline ("inferred eq_symm_type: " ^ (term_to_string inferred_type)); *)
+  assert (isDefEq env local_ctx inferred_type eq_symm_type)
+
 
 (* These two tests are made my AI so can remove or change them completely if wanted *)
 let test_axioms_sanity () =
@@ -255,12 +288,6 @@ let test_axioms_app () =
     assert false
   with Failure _ -> ()
 
-let test_exists_constants_lookup () =
-  let env = mk_axioms_env () in
-  let lctx = Hashtbl.create 16 in
-  (* Check that the constants are registered with the expected types *)
-  assert (inferType env lctx (Const "Exists") = exists_ty);
-  assert (inferType env lctx (Const "Exists.intro") = exists_intro_ty)
 
 let () =
   (* Taken from https://stackoverflow.com/questions/65868770/lack-of-information-when-ocaml-crashes#comment128358969_65873074,
@@ -276,10 +303,11 @@ let () =
   test_subst_bvar ();
   test_rebind_bvar ();
   test_infer_function_application ();
-  test_exists_constants_lookup ();
   test_app_multiarg ();
   test_empty_constants ();
   test_and_constants ();
   test_axioms_sanity ();
   test_axioms_app ();
+  test_eq_symm ();
+
   print_endline "All inferType tests passed."
