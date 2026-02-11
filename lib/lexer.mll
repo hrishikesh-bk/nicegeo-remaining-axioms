@@ -6,7 +6,7 @@ let builtins = Hashtbl.to_seq_keys (Env.mk_axioms_env ()) |> List.of_seq
 }
 
 let white = [' ' '\t' '\n' '\r']+
-let ident = ['a'-'z' 'A'-'Z' '_']['a'-'z' 'A'-'Z' '0'-'9' '_']*
+let ident = ['a'-'z' 'A'-'Z' '_' '.']['a'-'z' 'A'-'Z' '0'-'9' '_' '.']*
 
 rule token = parse
   | white       { token lexbuf }

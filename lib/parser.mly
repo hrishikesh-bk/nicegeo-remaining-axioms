@@ -25,6 +25,6 @@ app_term:
 atomic_term:
   | x = IDENT { Term.Fvar x }
   | c = CONST { Term.Const c }
-  | TYPE { Term.Sort 0 }
+  | TYPE { Term.Sort 1 }
   | PROP { Term.Sort 0 }
   | LPAREN t = term RPAREN { t }

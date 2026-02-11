@@ -1,8 +1,11 @@
 open System_e_kernel
 open Infer
 open Env
+open Printexc
 
 let () =
+  record_backtrace true;
+
   if Array.length Sys.argv < 2 then begin
     Printf.eprintf "Usage: %s <filename>\n" Sys.argv.(0);
     exit 1
@@ -18,7 +21,7 @@ let () =
   let env = mk_axioms_env () in
   let local_ctx = Hashtbl.create 16 in
 
-  let inferredType = inferType env local_ctx proof in
+  let inferredType = try inferType env local_ctx proof with Failure msg -> Printf.eprintf "Type inference error: %s\n" msg; exit 1 in
   let isValidProof = isDefEq env (Hashtbl.create 0) inferredType claim in
 
   print_endline ("Claim: " ^ (term_to_string claim));
