@@ -3,24 +3,6 @@ open Decl
 open Env
 open Printexc
 
-let getEnv =
-  let env = mk_axioms_env () in
-
-  (* Add the axioms in env.txt *)
-  let envFilename = "lib/env.txt" in
-  let env_ic = open_in envFilename in
-  let env_lexbuf = Lexing.from_channel env_ic in
-  
-  let env_decls : declaration list = Parser.main Lexer.token env_lexbuf in
-  close_in env_ic;
-  let all_decls_good = List.fold_left (fun x decl -> try addDeclaration decl env; x with Failure msg -> print_endline ("Error adding declaration: " ^ msg); false) true env_decls in
-  if not all_decls_good then begin
-    print_endline "Error(s) encountered while processing env.txt. Exiting.";
-    exit 1
-  end;
-
-  env
-
 let () =
   record_backtrace true;
 
@@ -49,7 +31,7 @@ let () =
         exit 1
   in
 
-  let env = getEnv in
+  let env = mk_axioms_env () in
 
   (* Process proof.txt *)
   let all_decls_good = List.fold_left (fun x decl -> try addDeclaration decl env; x with Failure msg -> print_endline ("Error adding declaration: " ^ msg); false) true decls in

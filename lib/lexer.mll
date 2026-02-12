@@ -1,8 +1,5 @@
 {
 open Parser
-
-
-let builtins = Hashtbl.to_seq_keys (Env.mk_axioms_env ()) |> List.of_seq
 }
 
 let white = [' ' '\t' '\n' '\r']+
@@ -23,10 +20,7 @@ rule token = parse
   | "Type"      { TYPE }
   | "Prop"      { PROP }
   | ident as id {
-    if List.mem id builtins then
-        CONST id
-    else 
-        IDENT id
+      IDENT id
     }
   | eof         { EOF }
 
