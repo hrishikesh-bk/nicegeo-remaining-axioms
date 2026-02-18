@@ -1,40 +1,49 @@
 open Decl
 open Term
+open Convert
 open System_e_kernel.Infer
 module KTerm = System_e_kernel.Term
 
+type t = {
+  env : (string, term) Hashtbl.t; (* elaboration-level environment *)
+  kenv : KTerm.environment; (* kernel-level environment (should be kept in sync with env) *)
+}
 
-let rec conv_to_kterm1 (t: term) : KTerm.term =
-  match t with
-  | Name x -> KTerm.Fvar x
-  | Hole -> failwith "hole in conv_to_kterm input"
-  | Fun (x, ty, body) -> 
-      let body_conv = conv_to_kterm1 body in
-      let rebound_body = rebind_bvar body_conv 0 x in
-      KTerm.Lam (conv_to_kterm1 ty, rebound_body)
-  | Arrow (x, ty, ret) -> 
-      let ret_conv = conv_to_kterm1 ret in
-      let rebound_ret = rebind_bvar ret_conv 0 x in
-      KTerm.Forall (conv_to_kterm1 ty, rebound_ret)
-  | App (f, arg) -> KTerm.App (conv_to_kterm1 f, conv_to_kterm1 arg)
-  | Sort n -> KTerm.Sort n
+let create () : t = {
+  env = Hashtbl.create 16;
+  kenv = Hashtbl.create 16;
+}
 
-let conv_to_kterm (t: term) : KTerm.term =
-  System_e_kernel.Decl.convertFvarToConst (conv_to_kterm1 t)
+let checktype (_e: t) (_tm: term) (_ty: term) : bool =
+  failwith "how does this work"
 
-let unify (t: term) : term =
-  t
+let unify (_e: t) (tm: term) : term =
+  tm
 
-let elab (t: term) : KTerm.term =
-  let t1 = unify t in
-  conv_to_kterm t1
-
-let elab_decl (d: declaration) : System_e_kernel.Decl.declaration =
+let process_decl (e: t) (d: declaration) : unit =
   match d with
-  | Theorem (name, ty, proof) -> 
-      let ty_k = conv_to_kterm ty in
-      let proof_k = conv_to_kterm proof in
-      System_e_kernel.Decl.Theorem (name, ty_k, proof_k)
+  | Theorem (name, ty, proof) ->
+      let ty_k = conv_to_kterm (unify e ty) in
+      let proof_k = conv_to_kterm (unify e proof) in
+      let inferredType = inferType e.kenv (Hashtbl.create 0) proof_k in
+      let isValidProof = isDefEq e.kenv (Hashtbl.create 0) inferredType ty_k in
+
+      if isValidProof then
+        (Hashtbl.add e.env name ty;
+        Hashtbl.add e.kenv name ty_k)
+      else
+        failwith ("invalid proof of " ^ name ^ "\n.")
   | Axiom (name, ty) ->
-      let ty_k = conv_to_kterm ty in
-      System_e_kernel.Decl.Axiom (name, ty_k)
+      let ty_k = conv_to_kterm (unify e ty) in
+      Hashtbl.add e.env name ty;
+      Hashtbl.add e.kenv name ty_k 
+
+
+let create_with_env () : t = 
+  let e = create () in
+  let ic = open_in "elab/env.txt" in
+  let lexbuf = Lexing.from_channel ic in
+  let decls = Parser.main Lexer.token lexbuf in
+  let _ = List.map (process_decl e) decls in
+  e
+
