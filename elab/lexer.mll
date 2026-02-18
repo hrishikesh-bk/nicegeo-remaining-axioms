@@ -19,6 +19,7 @@ rule token = parse
   | ")"         { RPAREN }
   | "Type"      { TYPE }
   | "Prop"      { PROP }
+  | "_" 	    { UNDERSCORE }
   | ident as id {
       IDENT id
     }
