@@ -20,7 +20,10 @@ let rec term_to_string (e: t) (tm: term) : string =
     Hashtbl.find_opt e.lctx idx |> (function
       | Some (Some name, _) -> name
       | _ -> "Fvar(" ^ string_of_int idx ^ ")")
-  | Hole idx -> "Hole(" ^ string_of_int idx ^ ")"
+  | Hole idx -> 
+    (match Hashtbl.find_opt e.metas idx with
+    | Some tm_sol -> "(hole " ^ string_of_int idx ^ " = " ^ term_to_string e tm_sol ^ ")"
+    | None -> "Hole(" ^ string_of_int idx ^ ")" )
   | Fun (arg, ty_arg, body) ->
       let arg_str = match arg with Some a -> a | None -> "_" in
       "(fun (" ^ arg_str ^ " : " ^ term_to_string e ty_arg ^ ") => " ^ term_to_string e body ^ ")"
@@ -39,32 +42,57 @@ let create () : t = {
   lctx = Hashtbl.create 16;
 }
 
-
 let rec hole_valid (e: t) (m: int) (tm: term) : bool =
   match tm with
-  | Hole m' -> if m = m' then false else (match Hashtbl.find_opt e.metas m' with
+  | Hole m' -> if m = m' then (print_endline "hole contains itself"; false) else (match Hashtbl.find_opt e.metas m' with
     | Some tm_sol -> hole_valid e m tm_sol
-    | None -> false)
-  | Fvar _ -> false (* only first order unification for now *)
+    (* | None -> (print_endline "hole contains unsolved hole"; false)) *)
+    | None -> true)
   | Fun (_, ty, body) -> hole_valid e m ty && hole_valid e m body
   | Arrow (_, ty, ret) -> hole_valid e m ty && hole_valid e m ret
   | App (f, arg) -> hole_valid e m f && hole_valid e m arg
   | _ -> true
 
-let rec whnf_beta (tm: term) : term =
+let rec whnf_beta (e: t) (tm: term) : term =
   match tm with
   | App (f, arg) -> 
-    let fn = whnf_beta f in
+    let fn = whnf_beta e f in
     (match fn with
-    | Fun (_, _, body) -> whnf_beta (replace_bvar body 0 arg)
+    | Fun (_, _, body) -> whnf_beta e (replace_bvar body 0 arg)
     | _ -> App (fn, arg))
+  (* do we need to recurse into holes? possibly *)
+  | Hole m -> (match Hashtbl.find_opt e.metas m with
+    | Some tm_sol -> whnf_beta e tm_sol
+    | None -> tm)
   | _ -> tm
 
+let rec rebind_holes (e: t) (tm: term) (fvar_idx: int) (bvar_idx: int) : term =
+  match tm with
+  | Hole m -> (match Hashtbl.find_opt e.metas m with
+    | Some tm_sol -> 
+      let tm_sol_rebound = rebind_holes e tm_sol fvar_idx bvar_idx in
+      Hashtbl.replace e.metas m tm_sol_rebound;
+      tm_sol_rebound
+    | None -> tm)
+  | Fun (x, ty, body) ->
+    let ty_rebound = rebind_holes e ty fvar_idx bvar_idx in
+    let body_rebound = rebind_holes e body fvar_idx (bvar_idx + 1) in
+    Fun (x, ty_rebound, body_rebound)
+  | Arrow (x, ty, ret) ->
+    let ty_rebound = rebind_holes e ty fvar_idx bvar_idx in
+    let ret_rebound = rebind_holes e ret fvar_idx (bvar_idx + 1) in
+    Arrow (x, ty_rebound, ret_rebound)
+  | App (f, arg) ->
+    let f_rebound = rebind_holes e f fvar_idx bvar_idx in
+    let arg_rebound = rebind_holes e arg fvar_idx bvar_idx in
+    App (f_rebound, arg_rebound)
+  | Fvar idx -> if idx = fvar_idx then Bvar bvar_idx else tm
+  | _ -> tm
 
 let rec unify (e: t) (t1: term) (t2: term) : unit =
+  let t1 = whnf_beta e t1 in
+  let t2 = whnf_beta e t2 in
   (* print_endline ("unifying " ^ term_to_string e t1 ^ " and " ^ term_to_string e t2); *)
-  let t1 = whnf_beta t1 in
-  let t2 = whnf_beta t2 in
   (* t1 and t2 should be closed under the current e *)
   match (t1, t2) with
   | Hole m1, Hole m2 ->
@@ -91,7 +119,10 @@ let rec unify (e: t) (t1: term) (t2: term) : unit =
     let body2_fvar = replace_bvar body2 0 (Fvar x) in
     Hashtbl.add e.lctx x (None, ty_arg1);
     unify e body1_fvar body2_fvar;
-    Hashtbl.remove e.lctx x
+    Hashtbl.remove e.lctx x;
+    let _ = rebind_holes e body1_fvar x 0 in
+    let _ = rebind_holes e body2_fvar x 0 in 
+    ()
   | Arrow (_, ty_arg1, ty_ret1), Arrow (_, ty_arg2, ty_ret2) ->
     unify e ty_arg1 ty_arg2;
     let x = gen_fvar_id () in
@@ -99,7 +130,10 @@ let rec unify (e: t) (t1: term) (t2: term) : unit =
     let ty_ret2_fvar = replace_bvar ty_ret2 0 (Fvar x) in
     Hashtbl.add e.lctx x (None, ty_arg1);
     unify e ty_ret1_fvar ty_ret2_fvar;
-    Hashtbl.remove e.lctx x
+    Hashtbl.remove e.lctx x;
+    let _ = rebind_holes e ty_ret1_fvar x 0 in
+    let _ = rebind_holes e ty_ret2_fvar x 0 in
+    ()
   | App (f1, arg1), App (f2, arg2) ->
     unify e f1 f2;
     unify e arg1 arg2
@@ -131,7 +165,9 @@ let rec checktype (e: t) (tm: term) (ty: term) : unit =
         let ty_ret_fvar = replace_bvar ty_ret 0 (Fvar x) in
         Hashtbl.add e.lctx x (arg, ty_arg);
         checktype e body_fvar ty_ret_fvar;
-        Hashtbl.remove e.lctx x
+        Hashtbl.remove e.lctx x;
+        let _ = rebind_holes e body_fvar x 0 in
+        ()
     | _ -> failwith "expected fun to have arrow type")
   | Arrow (_, ty_arg, ty_ret) ->
     (match ty with
@@ -141,7 +177,9 @@ let rec checktype (e: t) (tm: term) (ty: term) : unit =
       let ty_ret_fvar = replace_bvar ty_ret 0 (Fvar x) in
       Hashtbl.add e.lctx x (None, ty_arg);
       check_is_type e ty_ret_fvar;
-      Hashtbl.remove e.lctx x (* technically should check universes here *)
+      Hashtbl.remove e.lctx x; (* technically should check universes here *)
+      let _ = rebind_holes e ty_ret_fvar x 0 in
+      ()
     | _ -> failwith "expected arrow to have sort type")
   | App (f, arg) ->
     let f_type = infertype e f in
@@ -176,6 +214,7 @@ and infertype (e: t) (tm: term) : term =
     Hashtbl.add e.lctx x (arg, ty_arg);
     let ty_body = infertype e body_fvar in
     Hashtbl.remove e.lctx x;
+    let _ = rebind_holes e body_fvar x 0 in
     Arrow (arg, ty_arg, ty_body)
   | Arrow (arg, ty_arg, ty_ret) ->
     let ty_arg_ty = infertype e ty_arg in
@@ -184,6 +223,7 @@ and infertype (e: t) (tm: term) : term =
     Hashtbl.add e.lctx x (arg, ty_arg);
     let ty_ret_ty = infertype e ty_ret_fvar in
     Hashtbl.remove e.lctx x;
+    let _ = rebind_holes e ty_ret_fvar x 0 in
     (match ty_arg_ty, ty_ret_ty with
     | Sort n1, Sort n2 -> Sort (max n1 n2)
     | _ -> failwith "expected types of arrow to be sorts")
@@ -204,6 +244,7 @@ and infertype (e: t) (tm: term) : term =
   (* print_endline ("inferred type " ^ term_to_string e res ^ " for term " ^ term_to_string e tm); *)
   res
 
+
 and check_is_type (e: t) (tm: term) : unit =
   (* print_endline ("checking " ^ term_to_string e tm ^ " is a type"); *)
   match tm with
@@ -223,7 +264,9 @@ and check_is_type (e: t) (tm: term) : unit =
     let ty_ret_fvar = replace_bvar ty_ret 0 (Fvar x) in
     Hashtbl.add e.lctx x (arg, ty_arg);
     check_is_type e ty_ret_fvar;
-    Hashtbl.remove e.lctx x
+    Hashtbl.remove e.lctx x;
+    let _ = rebind_holes e ty_ret_fvar x 0 in
+    ()
   | App (f, arg) ->
     let f_type = infertype e f in
     (match f_type with
@@ -241,10 +284,20 @@ and check_is_type (e: t) (tm: term) : unit =
     | None -> failwith "unknown free variable in check_is_type")
 
 
+let rec contains_fvar (tm: term) : bool =
+  match tm with
+  | Fvar _ -> true
+  | Fun (_, ty_arg, body) -> contains_fvar ty_arg || contains_fvar body
+  | Arrow (_, ty_arg, ty_ret) -> contains_fvar ty_arg || contains_fvar ty_ret
+  | App (f, arg) -> contains_fvar f || contains_fvar arg
+  | _ -> false
+
 let rec replace_metas (e: t) (tm: term) : term =
   match tm with
   | Hole m -> (match Hashtbl.find_opt e.metas m with
-    | Some tm_sol -> replace_metas e tm_sol
+    | Some tm_sol -> 
+      if contains_fvar tm_sol then failwith "hole contains free variables, should have been bound" else
+      replace_metas e tm_sol
     | None -> failwith ("unfilled hole in replace_metas: " ^ term_to_string e tm))
   | Fun (arg, ty_arg, body) ->
     let ty_arg_filled = replace_metas e ty_arg in

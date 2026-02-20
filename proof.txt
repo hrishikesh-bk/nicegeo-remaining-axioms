@@ -1,37 +1,31 @@
 Theorem Eq.symm : (A: Type) -> (a: A) -> (b: A) -> (Eq A a b) -> (Eq A b a) :=
-	fun (A: Type) (a b : A) (eq_ab : Eq A a b) => Eq.elim A a (fun (x : A) => Eq A x a) (Eq.intro A a) b eq_ab
+	fun A (a b : A) (eq_ab : Eq A a b) => Eq.elim A a (fun (x : A) => Eq A x a) (Eq.intro A a) b eq_ab
 
 Theorem Ne.symm : (A: Type) -> (a: A) -> (b: A) -> (Eq A a b -> False) -> (Eq A b a -> False) :=
-	fun (A: Type) (a b: A) (ne_ab: Eq A a b -> False) => fun (eq_ba: Eq A b a) =>
+	fun A (a b: A) (ne_ab: Eq A a b -> False) => fun (eq_ba: Eq A b a) =>
 		ne_ab (Eq.symm A b a eq_ba)
 
 (* Proof of proposition I.I from Euclid's Elements. *)
 Theorem prop1 :
-(a : Point) -> (b : Point) -> (ab : Eq _ a b -> False) -> 
-Exists Point (fun (c : Point) =>
-    And (Eq _ (Length a b) (Length a c))
-        (Eq _ (Length b c) (Length b a)))
-:= fun (a b : Point) (ab : Eq _ a b -> False) =>
+(a : Point) -> (b : Point) -> (ab : Eq Point a b -> False) -> 
+Exists Point (fun (c: Point) =>
+    And (Eq Len (Length a b) (Length a c))
+        (Eq Len (Length b c) (Length b a)))
+:= fun a b (ab : Eq Point a b -> False) =>
    (*
     We begin by calling `circle_of_ne a b ab`.
     We then use `Exists.elim` to get access to this circle.
    *)
-   Exists.elim _ (fun (aa: _) => (And (CenterCircle a aa) (OnCircle b aa)))
-    (Exists Point (fun (c : Point) =>
-    And (Eq _ (Length a b) (Length a c))
-        (Eq _ (Length b c) (Length b a))))
+   Exists.elim _ _ _
     (circle_of_ne a b ab)
-    (fun (aa : Circle) => (fun (center_and_on : (And (CenterCircle a aa) (OnCircle b aa))) =>
+    (fun aa => (fun center_and_on =>
     (*
         Inside of here, we have access to the circle `aa`. 
         As well the fact `center_and_on` about the circle `aa`.
 
         Next, we use the `And.elim` to split up the `center_and_on`.
     *)
-    And.elim (CenterCircle a aa) (OnCircle b aa)
-    (Exists Point (fun (c : Point) =>
-    And (Eq Len (Length a b) (Length a c))
-        (Eq Len (Length b c) (Length b a))))
+    And.elim _ _ _
     (fun (aaa : CenterCircle a aa) => fun (baa : OnCircle b aa) =>
     (*
         Inside of here, we have access to the two facts
@@ -42,23 +36,17 @@ Exists Point (fun (c : Point) =>
         Next, we call `circle_of_ne b a (Ne.symm ab)`.
         We then use `Exists.elim` to get access to this circle.
     *)
-    Exists.elim Circle (fun (aa: Circle) => (And (CenterCircle b aa) (OnCircle a aa)))
-    (Exists Point (fun (c : Point) =>
-    And (Eq Len (Length a b) (Length a c))
-        (Eq Len (Length b c) (Length b a))))
-    (circle_of_ne b a (Ne.symm Point a b ab))
-    (fun (bb : Circle) => fun (b_center_and_on : And (CenterCircle b bb) (OnCircle a bb)) =>
+    Exists.elim _ _ _
+    (circle_of_ne _ _ (Ne.symm _ _ _ ab))
+    (fun (bb: Circle) (b_center_and_on : And (CenterCircle b bb) (OnCircle a bb)) =>
     (*
         Inside of here, we have access to the circle `bb`
         and also the fact `b_center_and_on` about the circle `bb`.
 
         Next, we use `And.elim` to split up `b_center_and_on`.
     *)
-    And.elim (CenterCircle b bb) (OnCircle a bb)
-    (Exists Point (fun (c : Point) =>
-    And (Eq Len (Length a b) (Length a c))
-        (Eq Len (Length b c) (Length b a))))
-    (fun (bbb : CenterCircle b bb) => fun (abb : OnCircle a bb) =>
+    And.elim _ _ _
+    (fun (bbb : CenterCircle b bb) (abb : OnCircle a bb) =>
     (*
         Inside of here, we have access to two facts:
         `bbb : CenterCircle b bb` and `abb : OnCircle a bb`.
@@ -79,23 +67,8 @@ Exists Point (fun (c : Point) =>
         And then we call `Exists.elim` to get the first point.
    *)
 
-   Exists.elim Point
-   (fun (c : Point) =>
-    Exists Point (fun (d : Point) =>
-    And (Eq Point c d -> False) (
-    And (OnCircle c aa) (
-    And (OnCircle c bb) (
-    And (OnCircle d aa) (OnCircle d bb))))))
-   (Exists Point (fun (c : Point) =>
-    And (Eq Len (Length a b) (Length a c))
-        (Eq Len (Length b c) (Length b a)))) 
-   (PtsOfCirclesinter aa bb aabb)
-   (fun (c : Point) => fun (next_point_and_facts : (Exists Point (fun (d : Point) =>
-    And (Eq Point c d -> False) (
-    And (OnCircle c aa) (
-    And (OnCircle c bb) (
-    And (OnCircle d aa) (OnCircle d bb))))))) =>
-
+   Exists.elim _ _ _ (PtsOfCirclesinter aa bb aabb)
+   (fun c => fun (next_point_and_facts : _) =>
     (*
         Inside of here, we have access to the point `c`.
         We also have access to `next_point_and_facts` which
@@ -105,20 +78,12 @@ Exists Point (fun (c : Point) =>
         We want to get access to those facts about `c`.
         So we continue to use `Exists.elim` on `next_point_and_facts`.
     *)
-    Exists.elim Point
-    (fun (d : Point) =>
-        And (Eq Point c d -> False) (
-        And (OnCircle c aa) (
-        And (OnCircle c bb) (
-        And (OnCircle d aa) (OnCircle d bb)))))
+    Exists.elim _ _
     (Exists Point (fun (c : Point) =>
     And (Eq Len (Length a b) (Length a c))
         (Eq Len (Length b c) (Length b a))))
     next_point_and_facts
-    (fun (d : Point) => fun (many_facts : (And (Eq Point c d -> False) (
-    And (OnCircle c aa) (
-    And (OnCircle c bb) (
-    And (OnCircle d aa) (OnCircle d bb)))))) =>
+    (fun (d : Point) => fun (many_facts : _) =>
 
     (*
         Inside of here, we have access to the point `d` which
@@ -126,30 +91,15 @@ Exists Point (fun (c : Point) =>
         The rest of the facts are called `many_facts`.
         We now break it apart with `And.elim`.
     *)
-    And.elim (Eq Point c d -> False) (
-    And (OnCircle c aa) (
-    And (OnCircle c bb) (
-    And (OnCircle d aa) (OnCircle d bb))))
-    (Exists Point (fun (c : Point) =>
-    And (Eq Len (Length a b) (Length a c))
-        (Eq Len (Length b c) (Length b a)))) 
-    (fun (ne_c_d : (Eq Point c d -> False)) => fun (four_facts_left : (
-    And (OnCircle c aa) (
-    And (OnCircle c bb) (
-    And (OnCircle d aa) (OnCircle d bb))))) =>
-
+    And.elim _ _ _
+    (fun (ne_c_d : (Eq Point c d -> False)) => fun four_facts_left =>
     (*
         Inside of here, we have access to the fact `ne_c_d`
         which we don't care about. But now we are even closer to the
         facts we want.
         So we use `And.elim` again.
     *)
-    And.elim (OnCircle c aa) (
-    And (OnCircle c bb) (
-    And (OnCircle d aa) (OnCircle d bb)))
-    (Exists Point (fun (c : Point) =>
-    And (Eq Len (Length a b) (Length a c))
-        (Eq Len (Length b c) (Length b a)))) 
+    And.elim _ _ _
     (fun (caa : OnCircle c aa) => fun (three_facts_left : (
     And (OnCircle c bb) (
     And (OnCircle d aa) (OnCircle d bb)))) =>
@@ -161,11 +111,7 @@ Exists Point (fun (c : Point) =>
     *)
     
 
-    And.elim (OnCircle c bb) (
-    And (OnCircle d aa) (OnCircle d bb))
-    (Exists Point (fun (c : Point) =>
-    And (Eq Len (Length a b) (Length a c))
-        (Eq Len (Length b c) (Length b a))))
+    And.elim _ _ _
     (fun (cbb : OnCircle c bb) => fun (two_facts_left : (
     And (OnCircle d aa) (OnCircle d bb))) =>
 
@@ -177,14 +123,9 @@ Exists Point (fun (c : Point) =>
         We then use `And.elim` to get access to the right to left direction.
     *)
     
-    And.elim (Eq Len (Length b c) (Length b a) -> OnCircle a bb)
-        (OnCircle a bb -> Eq Len (Length b c) (Length b a))
-    (Exists Point (fun (c : Point) =>
-    And (Eq Len (Length a b) (Length a c))
-        (Eq Len (Length b c) (Length b a))))
+    And.elim _ _ _
     (fun (_ltr_bc_ba : (Eq Len (Length b c) (Length b a) -> OnCircle a bb)) =>
         fun (rtl_bc_ba : (OnCircle a bb -> Eq Len (Length b c) (Length b a))) =>
-
 
     (*
         Inside of here, we have access to `rtl_bc_ba : (OnCircle a bb -> Eq Len (Length b c) (Length b a))`.
@@ -199,11 +140,7 @@ Exists Point (fun (c : Point) =>
         `And.elim` to get the right to left direction.
     *) 
     
-    And.elim (Eq Len (Length a b) (Length a c) -> OnCircle c aa)
-        (OnCircle c aa -> Eq Len (Length a b) (Length a c))
-    (Exists Point (fun (c : Point) =>
-    And (Eq Len (Length a b) (Length a c))
-        (Eq Len (Length b c) (Length b a)))) 
+    And.elim _ _ _
     (fun (_ltr_ab_ac : (Eq Len (Length a b) (Length a c) -> OnCircle c aa)) =>
         fun (rtl_ab_ac : (OnCircle c aa -> Eq Len (Length a b) (Length a c))) =>
 
@@ -219,7 +156,7 @@ Exists Point (fun (c : Point) =>
         We now use `Exists.intro` to construct the expected point.
     *) 
     
-    Exists.intro Point (fun (c : Point) =>
+    Exists.intro Point (fun c =>
     And (Eq Len (Length a b) (Length a c))
         (Eq Len (Length b c) (Length b a)))
     c
@@ -230,8 +167,7 @@ Exists Point (fun (c : Point) =>
         satisfies the `And` statement. So we use `And.intro`.
     *)
 
-    And.intro (Eq Len (Length a b) (Length a c)) (Eq Len (Length b c) (Length b a))
-        ab_ac bc_ba
+    And.intro _ _ ab_ac bc_ba
 
 
     )

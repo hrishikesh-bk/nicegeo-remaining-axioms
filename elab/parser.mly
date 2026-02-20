@@ -41,3 +41,4 @@ idlist:
 
 param_group:
   | LPAREN xs = idlist COLON ty = term RPAREN { List.map (fun x -> (x, ty)) xs }
+  | x = IDENT { [(x, Term.Hole (Term.gen_hole_id ()))] }
