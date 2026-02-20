@@ -133,12 +133,12 @@ let test_infer_forall () =
   assert (try
     ignore (try_infer env (Hashtbl.create 0) return_type_not_sort);
     false  
-  with Failure msg -> str_contains msg "Return type of a Forall must be a sort");
+  with Failure msg -> str_contains msg "Domain and return types of a Forall must be sorts");
   let domain_type_not_sort = Forall (Const "p", App (Const "IsRed", Const "p")) in
   assert (try
     ignore (try_infer env (Hashtbl.create 0) domain_type_not_sort);
     false  
-  with Failure msg -> str_contains msg "Domain type of a Forall must be a sort");
+  with Failure msg -> str_contains msg "Domain and return types of a Forall must be sorts");
   let domain_and_return_type_not_sort = Forall (Const "p", Const "p") in
   assert (try
     ignore (try_infer env (Hashtbl.create 0) domain_and_return_type_not_sort);
