@@ -51,8 +51,20 @@ let rec hole_valid (e: t) (m: int) (tm: term) : bool =
   | App (f, arg) -> hole_valid e m f && hole_valid e m arg
   | _ -> true
 
+let rec whnf_beta (tm: term) : term =
+  match tm with
+  | App (f, arg) -> 
+    let fn = whnf_beta f in
+    (match fn with
+    | Fun (_, _, body) -> whnf_beta (replace_bvar body 0 arg)
+    | _ -> App (fn, arg))
+  | _ -> tm
+
+
 let rec unify (e: t) (t1: term) (t2: term) : unit =
   (* print_endline ("unifying " ^ term_to_string e t1 ^ " and " ^ term_to_string e t2); *)
+  let t1 = whnf_beta t1 in
+  let t2 = whnf_beta t2 in
   (* t1 and t2 should be closed under the current e *)
   match (t1, t2) with
   | Hole m1, Hole m2 ->
@@ -60,7 +72,7 @@ let rec unify (e: t) (t1: term) (t2: term) : unit =
     | Some tm1_sol, Some tm2_sol -> unify e tm1_sol tm2_sol
     | Some tm1_sol, None -> unify e tm1_sol t2
     | None, Some tm2_sol -> unify e t1 tm2_sol
-    | None, None -> failwith "could not unify, tried to unify two unsolved holes")
+    | None, None -> ())
   | Hole m, _ ->
     if hole_valid e m t2 then
       Hashtbl.add e.metas m t2
@@ -135,7 +147,8 @@ let rec checktype (e: t) (tm: term) (ty: term) : unit =
     let f_type = infertype e f in
     (match f_type with
     | Arrow (_, ty_arg, ty_ret) -> 
-      unify e ty ty_ret;
+      let ty_ret_replaced = replace_bvar ty_ret 0 arg in
+      unify e ty ty_ret_replaced;
       checktype e arg ty_arg
     | _ -> failwith "expected a function type in application")
   | Sort n -> (match ty with
@@ -151,7 +164,8 @@ let rec checktype (e: t) (tm: term) (ty: term) : unit =
 
 (* entirely vibe coded surely it works *)
 and infertype (e: t) (tm: term) : term =
-  match tm with
+  (* print_endline ("inferring type of " ^ term_to_string e tm); *)
+  let res = match tm with
   | Hole _ -> failwith "cannot infer type of hole"
   | Name name ->
     (match Hashtbl.find_opt e.env name with
@@ -186,6 +200,9 @@ and infertype (e: t) (tm: term) : term =
     | Some (_, ty) -> ty
     | None -> failwith "unknown free variable in infertype")
   | Sort n -> Sort (n + 1)
+  in 
+  (* print_endline ("inferred type " ^ term_to_string e res ^ " for term " ^ term_to_string e tm); *)
+  res
 
 and check_is_type (e: t) (tm: term) : unit =
   (* print_endline ("checking " ^ term_to_string e tm ^ " is a type"); *)
@@ -223,8 +240,6 @@ and check_is_type (e: t) (tm: term) : unit =
     | Some (_, ty) -> if not (is_sort ty) then failwith "expected type of free variable to be a sort" else ()
     | None -> failwith "unknown free variable in check_is_type")
 
-(* let unify (_e: t) (tm: term) : term =
-  tm *)
 
 let rec replace_metas (e: t) (tm: term) : term =
   match tm with
