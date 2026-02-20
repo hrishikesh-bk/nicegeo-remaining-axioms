@@ -10,6 +10,7 @@ type type_error_kind =
   | BoundVarScopeError of int
   | AppArgTypeError of term * term * term * term * term
   | AppNonFuncError
+  | LamDomainError
   | ForallSortError of term * term
 
 type type_error_info =
@@ -42,7 +43,7 @@ let rec term_to_string (t : term) : string =
 let context_to_string (ctx : localcontext) : string =
   Hashtbl.fold (fun k v acc -> acc ^ k ^ " : " ^ term_to_string v ^ "\n") ctx ""
 
-(* TODO do I ever actually need the env and so on? if not consider removing; see later. also, note this is strictly the old behavior, didn't bother improving messages, may need more info in err_kind if you want better messages *)
+(* TODO do I ever actually need the env and so on? if not consider removing; see later. also, note this is strictly the old behavior, didn't bother improving messages, may need more info in err_kind if you want better messages for some of thesex *)
 let err_to_string (info : type_error_info) : string =
   match info.err_kind with
   | UnknownConstError name -> "unknown constant: " ^ name
@@ -68,6 +69,8 @@ let err_to_string (info : type_error_info) : string =
         (term_to_string inferred_a_type)
   | AppNonFuncError ->
      "Tried to apply non-function to an argument"
+  | LamDomainError ->
+     "Invalid domain type for lambda"
   | ForallSortError (domainTypeType, returnTypeType) ->
       Printf.sprintf 
         "Domain and return types of a Forall must be sorts.\n\
