@@ -153,7 +153,7 @@ let rec inferType (env : environment) (localCtx : localcontext) (t : term) : ter
               (term_to_string t)
               (term_to_string domainTypeType)
               (term_to_string returnTypeType) 
-          in *) raise (TypeError {env; ctx = localCtx; trm = t}))
+          in *) raise (TypeError {env; ctx = localCtx; trm = t; err_kind = ForallSortError}))
   | Sort level -> Sort (level + 1)
 
 and isDefEq (env : environment) (localCtx : localcontext) (t1 : term) (t2 : term) : bool =
