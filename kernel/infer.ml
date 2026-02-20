@@ -142,7 +142,7 @@ let rec inferType (env : environment) (localCtx : localcontext) (t : term) : ter
         | (Sort _, _) -> failwith "Return type of a Forall must be a sort"
         | (_, Sort _) -> failwith "Domain type of a Forall must be a sort"
         | _ -> 
-          (*let msg =  TODO move this 
+          (*let msg =  TODO move this. make a struct with an enum or something in the exception.ml file that contains the right information for each error kind
             Printf.sprintf 
               "Domain and return types of a Forall must be sorts.\n\
                Local Context:\n%s\n\
@@ -153,7 +153,7 @@ let rec inferType (env : environment) (localCtx : localcontext) (t : term) : ter
               (term_to_string t)
               (term_to_string domainTypeType)
               (term_to_string returnTypeType) 
-          in *) raise (TypeError (env, localCtx, t)))
+          in *) raise (TypeError {env; ctx = localCtx; trm = t}))
   | Sort level -> Sort (level + 1)
 
 and isDefEq (env : environment) (localCtx : localcontext) (t1 : term) (t2 : term) : bool =
