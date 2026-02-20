@@ -21,8 +21,20 @@ type type_error_info =
     err_kind : type_error_kind
   }
 
+type red_error_kind =
+  | AppArgRedError 
+
+type red_error_info =
+  {
+    env : environment;
+    ctx : localcontext;
+    trm : term;
+    err_kind : red_error_kind
+  }
+
 (* TODO revisit arguments later if all needed *)
 exception TypeError of type_error_info
+exception RedError of red_error_info
 
 (* --- Printing errors ---*)
 
@@ -44,7 +56,7 @@ let context_to_string (ctx : localcontext) : string =
   Hashtbl.fold (fun k v acc -> acc ^ k ^ " : " ^ term_to_string v ^ "\n") ctx ""
 
 (* TODO do I ever actually need the env and so on? if not consider removing; see later. also, note this is strictly the old behavior, didn't bother improving messages, may need more info in err_kind if you want better messages for some of thesex *)
-let err_to_string (info : type_error_info) : string =
+let type_err_to_string (info : type_error_info) : string =
   match info.err_kind with
   | UnknownConstError name -> "unknown constant: " ^ name
   | UnknownFreeVarError name -> "unknown free variable: " ^ name
@@ -82,3 +94,8 @@ let err_to_string (info : type_error_info) : string =
         (term_to_string info.trm)
         (term_to_string domainTypeType)
         (term_to_string returnTypeType)
+
+let red_err_to_string (info : red_error_info) : string =
+  match info.err_kind with
+  | AppArgRedError ->
+     "Function called with invalid argument type during reduction"

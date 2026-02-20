@@ -146,7 +146,9 @@ and reduce (env : environment) (localCtx : localcontext) (t : term) : term =
         let substed_body = subst_bvar body 0 arg in
         reduce env localCtx substed_body
       else
-        failwith "Function called with invalid argument type during reduction"
+        (* Error: Invalid argument type *)
+        let err_kind = AppArgRedError in
+        raise (RedError {env; ctx = localCtx; trm = t; err_kind})
   | App (func, arg) -> 
       let reduced_func = reduce env localCtx func in
       let reduced_arg = reduce env localCtx arg in
