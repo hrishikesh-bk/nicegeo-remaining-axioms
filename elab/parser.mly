@@ -40,5 +40,4 @@ idlist:
   | xs = idlist y = IDENT { xs @ [y] }
 
 param_group:
-  | LPAREN x = IDENT COLON ty = term RPAREN { [ (x, ty) ] }
   | LPAREN xs = idlist COLON ty = term RPAREN { List.map (fun x -> (x, ty)) xs }
