@@ -126,10 +126,12 @@ let rec inferType (env : environment) (localCtx : localcontext) (t : term) : ter
           if v = 0 then Sort 0  (* Prop is impredicative *)
           else Sort (max u v)
         )
-        | (Sort _, _) -> failwith "Return type of a Forall must be a sort"
-        | (_, Sort _) -> failwith "Domain type of a Forall must be a sort"
-        | _ -> 
-          raise (TypeError {env; ctx = localCtx; trm = t; err_kind = ForallSortError (domainTypeType, returnTypeType)}))
+        | _ ->
+          (* Error: domain and return type of forall both need to be sorts *)
+          let ctx = localCtx in
+          let trm = t in
+          let err_kind = ForallSortError (domainTypeType, returnTypeType) in
+          raise (TypeError {env; ctx; trm; err_kind}))
   | Sort level -> Sort (level + 1)
 
 and isDefEq (env : environment) (localCtx : localcontext) (t1 : term) (t2 : term) : bool =
