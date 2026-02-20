@@ -82,7 +82,10 @@ let rec inferType (env : environment) (localCtx : localcontext) (t : term) : ter
               (func, arg, func_type, expected_arg_type, inferred_arg_type)
           in
           raise (TypeError {env; ctx = localCtx; trm = t; err_kind})
-      | _ -> failwith "Tried to apply non-function to an argument"
+      | _ ->
+         (* Error: Tried to apply non-function to an argument *)
+         let err_kind = AppNonFuncError in
+         raise (TypeError {env; ctx = localCtx; trm = t; err_kind})
   )
   | Lam (domainType, body) -> (
       let new_fvar_name = gen_new_fvar_name () in
