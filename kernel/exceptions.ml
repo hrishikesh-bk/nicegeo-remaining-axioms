@@ -4,6 +4,8 @@ open Term
 (* --- Exception types --- *)
 
 type type_error_kind =
+  | UnknownConstError of string
+  | UnknownFreeVarError of string
   | ForallSortError of term * term
 
 type type_error_info =
@@ -21,6 +23,8 @@ exception TypeError of type_error_info
 
 (* TODO any display of the error messages will happen in the elaborator, but will start here to divide work into steps. this is taken directly from the old printing code in infer.ml but I am using it to preserve old behavior while also figuring out what printing info is needed in the type_error_info *)
 
+(* TODO machinery that actually does the printing needs to live somewhere, probably in the elaborator, maybe we want it somewhere here for intermediate steps for now though *)
+
 let rec term_to_string (t : term) : string =
   match t with
   | Const name -> name
@@ -34,8 +38,11 @@ let rec term_to_string (t : term) : string =
 let context_to_string (ctx : localcontext) : string =
   Hashtbl.fold (fun k v acc -> acc ^ k ^ " : " ^ term_to_string v ^ "\n") ctx ""
 
+(* TODO do I ever actually need the env and so on? if not consider removing; see later *)
 let err_to_string (info : type_error_info) : string =
   match info.err_kind with
+  | UnknownConstError name -> "unknown constant: " ^ name
+  | UnknownFreeVarError name -> "unknown free variable: " ^ name
   | ForallSortError (domainTypeType, returnTypeType) ->
       Printf.sprintf 
        "Domain and return types of a Forall must be sorts.\n\

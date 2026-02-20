@@ -49,11 +49,15 @@ let rec inferType (env : environment) (localCtx : localcontext) (t : term) : ter
   match t with
   | Const name -> (
       try Hashtbl.find env name
-      with Not_found -> failwith ("unknown constant: " ^ name)
+      with Not_found ->
+        let err_kind = UnknownConstError name in
+        raise (TypeError {env; ctx = localCtx; trm = t; err_kind})
     )
   | Fvar name -> (
       try Hashtbl.find localCtx name
-      with Not_found -> failwith ("unknown free variable: " ^ name)
+      with Not_found ->
+        let err_kind = UnknownFreeVarError name in
+        raise (TypeError {env; ctx = localCtx; trm = t; err_kind})
     )
   | Bvar idx -> (
       failwith ("bound variable index out of scope: " ^ string_of_int idx)
