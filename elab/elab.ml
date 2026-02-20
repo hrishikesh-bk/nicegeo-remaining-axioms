@@ -2,6 +2,7 @@ open Decl
 open Term
 open Convert
 open System_e_kernel.Infer
+open System_e_kernel.Exceptions
 module KTerm = System_e_kernel.Term
 
 type t = {
@@ -28,14 +29,18 @@ let process_decl (e: t) (d: declaration) : unit =
       else
         let ty_k = conv_to_kterm (unify e ty) in
         let proof_k = conv_to_kterm (unify e proof) in
-        let inferredType = inferType e.kenv (Hashtbl.create 0) proof_k in
-        let isValidProof = isDefEq e.kenv (Hashtbl.create 0) inferredType ty_k in
+        (try
+          (let inferredType = inferType e.kenv (Hashtbl.create 0) proof_k in
+           let isValidProof = isDefEq e.kenv (Hashtbl.create 0) inferredType ty_k in
 
-        if isValidProof then
-          (Hashtbl.add e.env name ty;
-          Hashtbl.add e.kenv name ty_k)
-        else
-          failwith ("invalid proof of " ^ name ^ ".\n")
+           if isValidProof then
+             (Hashtbl.add e.env name ty;
+              Hashtbl.add e.kenv name ty_k)
+           else
+             failwith ("invalid proof of " ^ name ^ ".\n"))
+        with (* temporary for refactor; please replace with your error infra *)
+        | TypeError info -> failwith (type_err_to_string info)
+        | RedError info -> failwith (red_err_to_string info))
   | Axiom (name, ty) ->
       if Hashtbl.mem e.env name then
         failwith ("axiom " ^ name ^ " already defined.\n")
