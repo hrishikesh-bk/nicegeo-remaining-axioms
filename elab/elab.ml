@@ -5,13 +5,29 @@ open Convert
 module KInfer = System_e_kernel.Infer
 module KTerm = System_e_kernel.Term
 
+exception InferHole
+
+type metavar = {
+  ty : term option;
+  vartypes : term list; (* types of the free variables in the solution, in order *)
+  sol : term option; (* solution term, should not contain fvars *)
+}
+
+type normterm =
+  | Fun of string option * term * term
+  | Arrow of string option * term * term
+  | VarSpine of term * term list
+  | MetaSpine of term * term list
+  | Sort of int
+
 type t = {
   env : (string, term) Hashtbl.t; (* elaboration-level environment *)
   kenv : KTerm.environment; (* kernel-level environment (should be kept in sync with env) *)
 
-  metas : (int, term) Hashtbl.t; (* mapping from hole IDs to values *)
+  metas : (int, metavar) Hashtbl.t; (* mapping from hole IDs to values *)
   lctx : (int, string option * term) Hashtbl.t; (* local context id to name and type. *)
 }
+
 let rec term_to_string (e: t) (tm: term) : string =
   match tm with
   | Name name -> name
@@ -22,8 +38,8 @@ let rec term_to_string (e: t) (tm: term) : string =
       | _ -> "Fvar(" ^ string_of_int idx ^ ")")
   | Hole idx -> 
     (match Hashtbl.find_opt e.metas idx with
-    | Some tm_sol -> "(hole " ^ string_of_int idx ^ " = " ^ term_to_string e tm_sol ^ ")"
-    | None -> "Hole(" ^ string_of_int idx ^ ")" )
+    | Some {sol=Some tm_sol; _} -> "(hole " ^ string_of_int idx ^ " = " ^ term_to_string e tm_sol ^ ")"
+    | _ -> "Hole(" ^ string_of_int idx ^ ")" )
   | Fun (arg, ty_arg, body) ->
       let arg_str = match arg with Some a -> a | None -> "_" in
       "(fun (" ^ arg_str ^ " : " ^ term_to_string e ty_arg ^ ") => " ^ term_to_string e body ^ ")"
@@ -42,16 +58,6 @@ let create () : t = {
   lctx = Hashtbl.create 16;
 }
 
-let rec hole_valid (e: t) (m: int) (tm: term) : bool =
-  match tm with
-  | Hole m' -> if m = m' then (print_endline "hole contains itself"; false) else (match Hashtbl.find_opt e.metas m' with
-    | Some tm_sol -> hole_valid e m tm_sol
-    (* | None -> (print_endline "hole contains unsolved hole"; false)) *)
-    | None -> true)
-  | Fun (_, ty, body) -> hole_valid e m ty && hole_valid e m body
-  | Arrow (_, ty, ret) -> hole_valid e m ty && hole_valid e m ret
-  | App (f, arg) -> hole_valid e m f && hole_valid e m arg
-  | _ -> true
 
 let rec whnf_beta (e: t) (tm: term) : term =
   match tm with
@@ -62,84 +68,116 @@ let rec whnf_beta (e: t) (tm: term) : term =
     | _ -> App (fn, arg))
   (* do we need to recurse into holes? possibly *)
   | Hole m -> (match Hashtbl.find_opt e.metas m with
-    | Some tm_sol -> whnf_beta e tm_sol
-    | None -> tm)
+    | Some {sol=Some tm_sol; _} -> whnf_beta e tm_sol
+    | _ -> tm)
   | _ -> tm
 
-let rec rebind_holes (e: t) (tm: term) (fvar_idx: int) (bvar_idx: int) : term =
+(* precondition: tm is already in whnf (call whnf_beta) *)
+let rec to_norm (e: t) (tm : term) : normterm =
   match tm with
-  | Hole m -> (match Hashtbl.find_opt e.metas m with
-    | Some tm_sol -> 
-      let tm_sol_rebound = rebind_holes e tm_sol fvar_idx bvar_idx in
-      Hashtbl.replace e.metas m tm_sol_rebound;
-      tm_sol_rebound
-    | None -> tm)
-  | Fun (x, ty, body) ->
-    let ty_rebound = rebind_holes e ty fvar_idx bvar_idx in
-    let body_rebound = rebind_holes e body fvar_idx (bvar_idx + 1) in
-    Fun (x, ty_rebound, body_rebound)
-  | Arrow (x, ty, ret) ->
-    let ty_rebound = rebind_holes e ty fvar_idx bvar_idx in
-    let ret_rebound = rebind_holes e ret fvar_idx (bvar_idx + 1) in
-    Arrow (x, ty_rebound, ret_rebound)
-  | App (f, arg) ->
-    let f_rebound = rebind_holes e f fvar_idx bvar_idx in
-    let arg_rebound = rebind_holes e arg fvar_idx bvar_idx in
-    App (f_rebound, arg_rebound)
-  | Fvar idx -> if idx = fvar_idx then Bvar bvar_idx else tm
-  | _ -> tm
+  | Fun (arg, ty_arg, body) -> Fun (arg, ty_arg, body)
+  | Arrow (arg, ty_arg, ty_ret) -> Arrow (arg, ty_arg, ty_ret)
+  | App (f, arg) -> 
+    let f_norm = to_norm e f in
+    (match f_norm with
+    | VarSpine (head, args) -> VarSpine (head, args @ [arg])
+    | MetaSpine (head, args) -> MetaSpine (head, args @ [arg])
+    | Fun _ | Arrow _ -> failwith "to_norm input should already be in whnf"
+    | Sort _ -> failwith "to_norm: cannot apply a sort")
+  | Name _ | Bvar _ | Fvar _ -> VarSpine (tm, [])
+  | Sort n -> Sort n
+  | Hole _ -> MetaSpine (tm, [])
+
+
+let valid_pattern_args (args: term list) : bool =
+  if List.exists (fun arg -> match arg with | Fvar _ -> false | _ -> true) args then false else
+  let rec check_args seen_args args =
+    match args with
+    | [] -> true
+    | arg :: rest ->
+      if List.exists (fun seen_arg -> match (seen_arg, arg) with
+        | (Fvar idx1, Fvar idx2) when idx1 = idx2 -> true
+        | _ -> false) seen_args then false
+      else check_args (arg :: seen_args) rest
+  in check_args [] args
+
+let rec valid_pattern (e: t) (m: int) (args: term list) (tm: term) : bool =
+  match tm with
+  | Hole m' -> if m = m' then (print_endline "hole contains itself"; false) else (match Hashtbl.find_opt e.metas m' with
+    | Some {sol=Some tm_sol; _} -> valid_pattern e m args tm_sol
+    | _ -> true)
+  | Fun (_, ty, body) -> valid_pattern e m args ty && valid_pattern e m args body
+  | Arrow (_, ty, ret) -> valid_pattern e m args ty && valid_pattern e m args ret
+  | App (f, arg) -> valid_pattern e m args f && valid_pattern e m args arg
+  | Fvar _ -> List.exists (fun arg -> arg = tm) args
+  | _ -> true
+
+let rec last = function
+| [] -> failwith "empty list"
+| [x] -> x
+| _ :: xs -> last xs
+
+let rec pattern_match_meta (e: t) (m: int) (args: term list) (tm: term) : unit =
+  (* print_endline ("pattern matching meta " ^ string_of_int m ^ " with args " ^ String.concat " " (List.map (term_to_string e) args) ^ " against term " ^ term_to_string e tm); *)
+  (* uhh get rid of the last matching args? *)
+  if List.length (Hashtbl.find e.metas m).vartypes < List.length args then
+    match tm with
+    | App (f, arg) when last args = arg -> 
+      pattern_match_meta e m (List.rev (List.tl (List.rev args))) f
+    | _ -> failwith "too many arguments in pattern match for meta"
+  else
+  if not (valid_pattern_args args) then print_endline "invalid arguments for pattern matching";
+  if not (valid_pattern e m args tm) then print_endline "invalid solution for meta";
+
+  (* just need to bind them now how hard can it be clueless *)
+  (* could basically walk down term,  *)
+  (* actually let's just do the args one at a time. for each arg, do fun arg => (replace tm with bvar) *)
+  let rec fold (tm: term) (args: term list) (types: term list) : term = (* args and types in reverse order lol *)
+    match args with
+    | [] -> tm
+    | arg :: rest ->
+      let tm_with_arg = bind_bvar tm 0 arg in
+      let tm_fun = Term.Fun (None, List.hd types, tm_with_arg) in
+      fold tm_fun rest (List.tl types)
+  in
+
+  Hashtbl.replace e.metas m { (Hashtbl.find e.metas m) with sol = Some (fold tm (List.rev args) (List.rev (Hashtbl.find e.metas m).vartypes)) }
 
 let rec unify (e: t) (t1: term) (t2: term) : unit =
   let t1 = whnf_beta e t1 in
   let t2 = whnf_beta e t2 in
   (* print_endline ("unifying " ^ term_to_string e t1 ^ " and " ^ term_to_string e t2); *)
+  let nt1 = to_norm e t1 in
+  let nt2 = to_norm e t2 in
   (* t1 and t2 should be closed under the current e *)
-  match (t1, t2) with
-  | Hole m1, Hole m2 ->
-    (match (Hashtbl.find_opt e.metas m1, Hashtbl.find_opt e.metas m2) with
-    | Some tm1_sol, Some tm2_sol -> unify e tm1_sol tm2_sol
-    | Some tm1_sol, None -> unify e tm1_sol t2
-    | None, Some tm2_sol -> unify e t1 tm2_sol
-    | None, None -> ())
-  | Hole m, _ ->
-    if hole_valid e m t2 then
-      Hashtbl.add e.metas m t2
-    else
-      failwith "could not unify, hole is not valid"
-  | _, Hole m ->
-    if hole_valid e m t1 then
-      Hashtbl.add e.metas m t1
-    else
-      failwith "could not unify, hole is not valid"
-  | Name n1, Name n2 when n1 = n2 -> ()
-  | Fun (_, ty_arg1, body1), Fun (_, ty_arg2, body2) ->
-    unify e ty_arg1 ty_arg2;
-    let x = gen_fvar_id () in
-    let body1_fvar = replace_bvar body1 0 (Fvar x) in
-    let body2_fvar = replace_bvar body2 0 (Fvar x) in
-    Hashtbl.add e.lctx x (None, ty_arg1);
-    unify e body1_fvar body2_fvar;
-    Hashtbl.remove e.lctx x;
-    let _ = rebind_holes e body1_fvar x 0 in
-    let _ = rebind_holes e body2_fvar x 0 in 
-    ()
+  match (nt1, nt2) with
+  | MetaSpine (Hole m1, args1), MetaSpine (Hole m2, args2) -> 
+    (* could theoretically do some freaky stuff here *)
+    if List.length args1 != List.length args2 then print_endline "tried to unify different length meta spines" else
+    if m1 = m2 then () else
+    let (m1, m2) = if m1 < m2 then (m1, m2) else (m2, m1) in
+    Hashtbl.replace e.metas m1 { (Hashtbl.find e.metas m1) with sol = Some (Hole m2) };
+    List.iter2 (fun arg1 arg2 -> unify e arg1 arg2) args1 args2
+  | MetaSpine (Hole m, args), _ ->
+    pattern_match_meta e m args t2
+  | _, MetaSpine (Hole m, args) ->
+    pattern_match_meta e m args t1
+  | VarSpine (h1, args1), VarSpine (h2, args2) when h1 = h2 ->
+    if List.length args1 != List.length args2 then failwith "tried to unify different length var spines" else
+    List.iter2 (fun arg1 arg2 -> unify e arg1 arg2) args1 args2
   | Arrow (_, ty_arg1, ty_ret1), Arrow (_, ty_arg2, ty_ret2) ->
     unify e ty_arg1 ty_arg2;
     let x = gen_fvar_id () in
     let ty_ret1_fvar = replace_bvar ty_ret1 0 (Fvar x) in
     let ty_ret2_fvar = replace_bvar ty_ret2 0 (Fvar x) in
-    Hashtbl.add e.lctx x (None, ty_arg1);
-    unify e ty_ret1_fvar ty_ret2_fvar;
-    Hashtbl.remove e.lctx x;
-    let _ = rebind_holes e ty_ret1_fvar x 0 in
-    let _ = rebind_holes e ty_ret2_fvar x 0 in
-    ()
-  | App (f1, arg1), App (f2, arg2) ->
-    unify e f1 f2;
-    unify e arg1 arg2
+    unify e ty_ret1_fvar ty_ret2_fvar
+  | Fun (_, ty_arg1, body1), Fun (_, ty_arg2, body2) -> (* todo: eta i think here? *)
+    unify e ty_arg1 ty_arg2;
+    let x = gen_fvar_id () in
+    let body1_fvar = replace_bvar body1 0 (Fvar x) in
+    let body2_fvar = replace_bvar body2 0 (Fvar x) in
+    unify e body1_fvar body2_fvar
   | Sort n1, Sort n2 when n1 = n2 -> ()
-  | Bvar idx1, Bvar idx2 when idx1 = idx2 -> ()
-  | Fvar idx1, Fvar idx2 when idx1 = idx2 -> ()
   | _ -> failwith ("failed to unify non-matching terms " ^ term_to_string e t1 ^ " and " ^ term_to_string e t2)
 
 (* checks that tm has expected type ty, trying to fill in metas? *)
@@ -149,81 +187,45 @@ let rec checktype (e: t) (tm: term) (ty: term) : unit =
   match tm with 
   | Hole m ->
     (match Hashtbl.find_opt e.metas m with
-    | Some tm_sol -> checktype e tm_sol ty
-    | None -> ()) (* todo keep track of hole types i think *)
-  | Name name ->
-    (match Hashtbl.find_opt e.env name with
-      | Some ty_sol -> unify e ty_sol ty
-      | None -> failwith ("unknown identifier: " ^ name))
-  | Fun (arg, ty_arg, body) ->
-    (match ty with
-    | Arrow (_, ty_arg_expected, ty_ret) ->
-        unify e ty_arg ty_arg_expected;
-        (* free variableify the body *)
-        let x = gen_fvar_id () in
-        let body_fvar = replace_bvar body 0 (Fvar x) in
-        let ty_ret_fvar = replace_bvar ty_ret 0 (Fvar x) in
-        Hashtbl.add e.lctx x (arg, ty_arg);
-        checktype e body_fvar ty_ret_fvar;
-        Hashtbl.remove e.lctx x;
-        let _ = rebind_holes e body_fvar x 0 in
-        ()
-    | _ -> failwith "expected fun to have arrow type")
-  | Arrow (_, ty_arg, ty_ret) ->
-    (match ty with
-    | Sort _ -> 
-      check_is_type e ty_arg;
-      let x = gen_fvar_id () in
-      let ty_ret_fvar = replace_bvar ty_ret 0 (Fvar x) in
-      Hashtbl.add e.lctx x (None, ty_arg);
-      check_is_type e ty_ret_fvar;
-      Hashtbl.remove e.lctx x; (* technically should check universes here *)
-      let _ = rebind_holes e ty_ret_fvar x 0 in
-      ()
-    | _ -> failwith "expected arrow to have sort type")
+    | Some {ty=ty1; vartypes; sol} -> 
+      (match ty1 with
+      | Some ty1 -> unify e ty ty1
+      | None -> Hashtbl.replace e.metas m {ty = Some ty; vartypes; sol})
+    | None -> failwith "unknown metavar in checktype")
   | App (f, arg) ->
-    let f_type = infertype e f in
-    (match f_type with
-    | Arrow (_, ty_arg, ty_ret) -> 
-      let ty_ret_replaced = replace_bvar ty_ret 0 arg in
-      unify e ty ty_ret_replaced;
-      checktype e arg ty_arg
-    | _ -> failwith "expected a function type in application")
-  | Sort n -> (match ty with
-    | Sort m when m > n -> ()
-    | _ -> failwith "expected a higher sort in sort typing")
+    (try unify e ty (infertype e tm) with InferHole ->
+      let argtype = infertype e arg in
+      checktype e f (Arrow (None, argtype, ty)))
+  | Name _ | Fun _ | Arrow _ | Sort _ | Fvar _ ->
+    unify e ty (infertype e tm)
   | Bvar _ -> failwith "unexpected bound variable in checktype"
-  | Fvar fvar -> 
-    (match Hashtbl.find_opt e.lctx fvar with
-    | Some (_, lctx_ty) -> unify e ty lctx_ty
-    | None -> failwith "unknown free variable in checktype")
-
-    (* i sort of inlined some parts of infertype here but erm *)
-
-(* entirely vibe coded surely it works *)
+  
 and infertype (e: t) (tm: term) : term =
   (* print_endline ("inferring type of " ^ term_to_string e tm); *)
   let res = match tm with
-  | Hole _ -> failwith "cannot infer type of hole"
+  | Hole _ -> raise InferHole
   | Name name ->
     (match Hashtbl.find_opt e.env name with
-      | Some ty -> ty      | None -> failwith ("unknown identifier: " ^ name))
+      | Some ty -> ty      
+      | None -> failwith ("unknown identifier: " ^ name))
   | Fun (arg, ty_arg, body) ->
+    check_is_type e ty_arg;
     let x = gen_fvar_id () in
     let body_fvar = replace_bvar body 0 (Fvar x) in
     Hashtbl.add e.lctx x (arg, ty_arg);
     let ty_body = infertype e body_fvar in
+    let ty_body = bind_bvar ty_body 0 (Fvar x) in
     Hashtbl.remove e.lctx x;
-    let _ = rebind_holes e body_fvar x 0 in
     Arrow (arg, ty_arg, ty_body)
   | Arrow (arg, ty_arg, ty_ret) ->
+    check_is_type e ty_arg;
     let ty_arg_ty = infertype e ty_arg in
     let x = gen_fvar_id () in
     let ty_ret_fvar = replace_bvar ty_ret 0 (Fvar x) in
     Hashtbl.add e.lctx x (arg, ty_arg);
+    check_is_type e ty_ret_fvar;
     let ty_ret_ty = infertype e ty_ret_fvar in
     Hashtbl.remove e.lctx x;
-    let _ = rebind_holes e ty_ret_fvar x 0 in
     (match ty_arg_ty, ty_ret_ty with
     | Sort n1, Sort n2 -> Sort (max n1 n2)
     | _ -> failwith "expected types of arrow to be sorts")
@@ -231,6 +233,7 @@ and infertype (e: t) (tm: term) : term =
     let f_type = infertype e f in
     (match f_type with
     | Arrow (_, ty_arg, ty_ret) ->
+      check_is_type e ty_arg;
       checktype e arg ty_arg;
       replace_bvar ty_ret 0 arg
     | _ -> failwith "expected a function type in application")
@@ -250,8 +253,8 @@ and check_is_type (e: t) (tm: term) : unit =
   match tm with
   | Hole m ->
     (match Hashtbl.find_opt e.metas m with
-    | Some tm_sol -> check_is_type e tm_sol
-    | None -> ())
+    | Some {ty=Some ty; _} -> if not (is_sort ty) then failwith "expected hole to be a sort" else ()
+    | _ -> ())
   | Name name ->
     (match Hashtbl.find_opt e.env name with
       | Some ty -> if not (is_sort ty) then failwith ("expected " ^ name ^ " to be a type") else ()
@@ -264,23 +267,25 @@ and check_is_type (e: t) (tm: term) : unit =
     let ty_ret_fvar = replace_bvar ty_ret 0 (Fvar x) in
     Hashtbl.add e.lctx x (arg, ty_arg);
     check_is_type e ty_ret_fvar;
-    Hashtbl.remove e.lctx x;
-    let _ = rebind_holes e ty_ret_fvar x 0 in
-    ()
+    Hashtbl.remove e.lctx x
   | App (f, arg) ->
-    let f_type = infertype e f in
+    let f_type = try Some (infertype e f) with InferHole -> None in
+
     (match f_type with
-    | Arrow (_, ty_arg, ty_ret) -> 
+    | Some (Arrow (_, ty_arg, ty_ret)) -> 
       (* print_endline ("app checktype: checking that " ^ term_to_string e arg ^ " has type " ^ term_to_string e ty_arg);
       print_endline ("because f is " ^ term_to_string e f ^ " and has type " ^ term_to_string e f_type); *)
       checktype e arg ty_arg;
       if not (is_sort ty_ret) then failwith "expected return type of function to be a sort"
-    | _ -> failwith "expected a function type in application")
+    | Some _ -> failwith "expected a function type in application"
+    | None -> ())
   | Sort _ -> ()
   | Bvar _ -> failwith "unexpected bound variable in check_is_type"
   | Fvar fvar ->
     (match Hashtbl.find_opt e.lctx fvar with
-    | Some (_, ty) -> if not (is_sort ty) then failwith "expected type of free variable to be a sort" else ()
+    | Some (_, ty) -> 
+      let ty = whnf_beta e ty in
+      if not (is_sort ty || match ty with | Hole _ -> true | _ -> false) then failwith ("expected type " ^ (term_to_string e ty) ^ " of free variable to be a sort") else ()
     | None -> failwith "unknown free variable in check_is_type")
 
 
@@ -295,10 +300,10 @@ let rec contains_fvar (tm: term) : bool =
 let rec replace_metas (e: t) (tm: term) : term =
   match tm with
   | Hole m -> (match Hashtbl.find_opt e.metas m with
-    | Some tm_sol -> 
+    | Some {sol=Some tm_sol; _} -> 
       if contains_fvar tm_sol then failwith "hole contains free variables, should have been bound" else
       replace_metas e tm_sol
-    | None -> failwith ("unfilled hole in replace_metas: " ^ term_to_string e tm))
+    | _ -> failwith ("unfilled hole in replace_metas: " ^ term_to_string e tm))
   | Fun (arg, ty_arg, body) ->
     let ty_arg_filled = replace_metas e ty_arg in
     let body_filled = replace_metas e body in
@@ -313,15 +318,45 @@ let rec replace_metas (e: t) (tm: term) : term =
     App (f_filled, arg_filled)
   | _ -> tm
 
+let rec hole_to_meta (e: t) (stack: term list) (tm: term): term = 
+  match tm with
+  | Hole m ->
+    let types = List.rev stack in
+    let meta = { ty = None; vartypes = types; sol = None } in
+    Hashtbl.add e.metas m meta;
+    (* App(App(App(tm, Bvar 2), Bvar 1), Bvar 0) *)
+    let rec fold (tm: term) (level: int) : term =
+      (match level with
+      | 0 -> tm
+      | n ->
+        fold (App (tm, Bvar (n - 1))) (n - 1))
+    in
+    fold (Hole m) (List.length stack)
+  | Fun (arg, ty_arg, body) ->
+    let ty_arg_meta = hole_to_meta e stack ty_arg in
+    let body_meta = hole_to_meta e (ty_arg_meta :: stack) body in
+    Fun (arg, ty_arg_meta, body_meta)
+  | Arrow (arg, ty_arg, ty_ret) ->
+    let ty_arg_meta = hole_to_meta e stack ty_arg in
+    let ty_ret_meta = hole_to_meta e (ty_arg_meta :: stack) ty_ret in
+    Arrow (arg, ty_arg_meta, ty_ret_meta)
+  | App (f, arg) ->
+    let f_meta = hole_to_meta e stack f in
+    let arg_meta = hole_to_meta e stack arg in
+    App (f_meta, arg_meta)
+  | _ -> tm
+
 let process_decl (e: t) (d: declaration) : unit =
   match d with
   | Theorem (name, ty, proof) ->
     if Hashtbl.mem e.env name then failwith ("theorem " ^ name ^ " already defined.\n") else
-    check_is_type e ty;
-    let ty_filled = replace_metas e ty in
+    let ty_meta = hole_to_meta e [] ty in
+    check_is_type e ty_meta;
+    let ty_filled = replace_metas e ty_meta in
     Hashtbl.clear e.metas;
-    checktype e proof ty;
-    let proof_filled = replace_metas e proof in
+    let proof_meta = hole_to_meta e [] proof in
+    checktype e proof_meta ty_filled;
+    let proof_filled = replace_metas e proof_meta in
     Hashtbl.clear e.metas;
     let ty_k = conv_to_kterm ty_filled in
     let proof_k = conv_to_kterm proof_filled in
@@ -336,8 +371,9 @@ let process_decl (e: t) (d: declaration) : unit =
   | Axiom (name, ty) ->
     (* print_endline ("processing axiom " ^ name ^ " of type " ^ term_to_string e ty); *)
     if Hashtbl.mem e.env name then failwith ("axiom " ^ name ^ " already defined.\n") else
-    check_is_type e ty;
-    let ty_filled = try replace_metas e ty with Failure msg -> failwith ("failed to replace metas in axiom " ^ name ^ " of type " ^ term_to_string e ty ^ ": " ^ msg) in
+    let ty_meta = hole_to_meta e [] ty in
+    check_is_type e ty_meta;
+    let ty_filled = try replace_metas e ty_meta with Failure msg -> failwith ("failed to replace metas in axiom " ^ name ^ " of type " ^ term_to_string e ty_meta ^ ": " ^ msg) in
 
     Hashtbl.clear e.metas;
     let ty_k = conv_to_kterm ty_filled in

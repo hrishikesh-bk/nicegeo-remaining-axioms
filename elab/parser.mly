@@ -17,10 +17,10 @@ term:
   | FUN params = list(param_group) ARROW body = term
     {
       let params_flat = List.concat params in
-      List.fold_right (fun (x,ty) acc -> Term.Fun (Some x, ty, Term.bind_bvar acc 0 x)) params_flat body
+      List.fold_right (fun (x,ty) acc -> Term.Fun (Some x, ty, Term.bind_bvar acc 0 (Term.Name x))) params_flat body
     }
   | LPAREN x = IDENT COLON ty = term RPAREN FORALL rettype = term
-    { Term.Arrow (Some x, ty, Term.bind_bvar rettype 0 x) }
+    { Term.Arrow (Some x, ty, Term.bind_bvar rettype 0 (Term.Name x)) }
   | ty = app_term FORALL rettype = term
     { Term.Arrow (None, ty, rettype) }
 

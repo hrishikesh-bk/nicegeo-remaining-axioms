@@ -105,8 +105,9 @@ let rec inferType (env : environment) (localCtx : localcontext) (t : term) : ter
   | Lam (domainType, body) -> (
       let new_fvar_name = gen_new_fvar_name () in
       let domainTypeType = inferType env localCtx domainType in
-      if not (isSort env domainTypeType) then
-        failwith "invalid domain type for lambda"
+      if not (isSort env (reduce env localCtx domainTypeType)) then
+        (print_endline ("lambda domain type is not a sort: " ^ term_to_string domainTypeType);
+        failwith "invalid domain type for lambda")
       else
       (* add mapping new_fvar_name -> domainType to localCtx in recursive call *)
       (* this is fine because domainType won't have any unresolved BVars *)
@@ -133,6 +134,8 @@ let rec inferType (env : environment) (localCtx : localcontext) (t : term) : ter
         in
         let substed_return_type = subst_bvar returnType 0 (Fvar new_fvar_name) in
         inferType env newLocalCtx substed_return_type in
+      let domainTypeType = reduce env localCtx domainTypeType in
+      let returnTypeType = reduce env localCtx returnTypeType in
       match (domainTypeType, returnTypeType) with
         | (Sort u, Sort v) -> (
           if v = 0 then Sort 0  (* Prop is impredicative *)
@@ -164,17 +167,26 @@ and isDefEq (env : environment) (localCtx : localcontext) (t1 : term) (t2 : term
 
 and reduce (env : environment) (localCtx : localcontext) (t : term) : term =
   match t with
-  | App (Lam (domainType, body), arg) -> (* beta reduction i think *)
+  (* | App (Lam (domainType, body), arg) -> (* beta reduction i think *)
       let arg_type = inferType env localCtx arg in
       if domainType = arg_type then
         let substed_body = subst_bvar body 0 arg in
         reduce env localCtx substed_body
       else
-        failwith "Function called with invalid argument type during reduction"
+        failwith "Function called with invalid argument type during reduction" *)
   | App (func, arg) -> 
       let reduced_func = reduce env localCtx func in
       let reduced_arg = reduce env localCtx arg in
-      App (reduced_func, reduced_arg)
+      (match reduced_func with
+      | Lam (domainType, body) ->
+          let arg_type = inferType env localCtx reduced_arg in
+          if isDefEq env localCtx domainType arg_type then
+            let substed_body = subst_bvar body 0 reduced_arg in
+            reduce env localCtx substed_body
+          else
+            failwith "Function called with invalid argument type during reduction"
+      | _ ->
+        App (reduced_func, reduced_arg))
   | Lam (domainType, body) -> 
     (* need to subst fvar *)
     let new_fvar_name = gen_new_fvar_name () in

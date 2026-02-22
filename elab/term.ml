@@ -17,21 +17,21 @@ let gen_hole_id () =
 
 let gen_fvar_id = gen_hole_id
 
-let rec bind_bvar (tm: term) (bvar_idx: int) (name: string) : term =
+let rec bind_bvar (tm: term) (bvar_idx: int) (pat: term) : term =
   match tm with
   | Fun (x, ty_arg, body) ->
-    let ty_arg_rebound = bind_bvar ty_arg bvar_idx name in
-    let body_rebound = bind_bvar body (bvar_idx + 1) name in
+    let ty_arg_rebound = bind_bvar ty_arg bvar_idx pat in
+    let body_rebound = bind_bvar body (bvar_idx + 1) pat in
     Fun (x, ty_arg_rebound, body_rebound)
   | Arrow (x, ty_arg, ty_ret) ->
-    let ty_arg_rebound = bind_bvar ty_arg bvar_idx name in
-    let ty_ret_rebound = bind_bvar ty_ret (bvar_idx + 1) name in
+    let ty_arg_rebound = bind_bvar ty_arg bvar_idx pat in
+    let ty_ret_rebound = bind_bvar ty_ret (bvar_idx + 1) pat in
     Arrow (x, ty_arg_rebound, ty_ret_rebound)
   | App (t1, t2) ->
-    let t1_rebound = bind_bvar t1 bvar_idx name in
-    let t2_rebound = bind_bvar t2 bvar_idx name in
+    let t1_rebound = bind_bvar t1 bvar_idx pat in
+    let t2_rebound = bind_bvar t2 bvar_idx pat in
     App (t1_rebound, t2_rebound)
-  | Name n -> if n = name then Bvar bvar_idx else tm
+  | Name _ | Fvar _ -> if tm = pat then Bvar bvar_idx else tm
   | tm -> tm
 
 
