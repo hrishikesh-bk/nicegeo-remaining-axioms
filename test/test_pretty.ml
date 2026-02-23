@@ -2,7 +2,7 @@
    Run with: dune exec test/test_pretty.exe *)
 
 open System_e_kernel
-open System_e_kernel.Pretty
+open E_elab.Kernel_pretty
 open E_elab.Decl
 open E_elab.Pretty
 
@@ -11,13 +11,13 @@ module ETerm = E_elab.Term
 
 let () = Printf.printf "=== Kernel term pretty-printing ===\n\n"
 
-(* Example 1: Raw kernel term_to_string (from Infer) vs our pretty version *)
+(* Example 1: Raw kernel term_to_string (from Exceptions) vs our pretty version *)
 let () =
   let t = KTerm.(Forall (Sort 1, Forall (Sort 0, Sort 0))) in
-  let raw = Infer.term_to_string t in
+  let raw = Exceptions.term_to_string t in
   let pretty = term_to_string_pretty t in
   Printf.printf "Kernel term: Forall (Sort 1, Forall (Sort 0, Sort 0))\n";
-  Printf.printf "  Raw (Infer):    %s\n" raw;
+  Printf.printf "  Raw:            %s\n" raw;
   Printf.printf "  Pretty:         %s\n\n" pretty
 
 (* Example 2: Bound variables become _0, _1 instead of Bvar 0, Bvar 1 *)
@@ -28,7 +28,7 @@ let () =
   in
   let t = KTerm.(Forall (Sort 1, Forall (Sort 0, body))) in
   Printf.printf "Kernel term with Bvars: (A : Type) -> (B : Prop) -> And A B\n";
-  Printf.printf "  Raw:    %s\n" (Infer.term_to_string t);
+  Printf.printf "  Raw:    %s\n" (Exceptions.term_to_string t);
   Printf.printf "  Pretty: %s\n\n" (term_to_string_pretty t)
 
 (* Example 3: Optional names for binders *)
@@ -45,7 +45,7 @@ let () =
     KTerm.(App (App (App (Const "f", Const "a"), Const "b"), Const "c"))
   in
   Printf.printf "App spine f a b c:\n";
-  Printf.printf "  Raw:    %s\n" (Infer.term_to_string t);
+  Printf.printf "  Raw:    %s\n" (Exceptions.term_to_string t);
   Printf.printf "  Pretty: %s\n\n" (term_to_string_pretty t)
 
 let () = Printf.printf "=== Elaborator term pretty-printing ===\n\n"
