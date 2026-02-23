@@ -325,3 +325,21 @@ Exists Point (fun (c : Point) =>
 			(Eq Len (Length b c) (Length b a)))
     c (And.intro _ _ (rtl_ab_ac caa) (rtl_bc_ba abb))
 	)))))))))))
+
+
+Theorem AddCancel : (x: Len) -> (y: Len) -> (z: Len) -> Eq _ (Add x z) (Add y z) -> Eq _ x y :=
+    fun x y z h =>
+    (* by cases LtTricot x y *)
+    Or.elim _ _ _ (LtTricot x y)
+    (fun (xly : Lt x y) => 
+    (* LtAdd x y z xly : Lt (Add x z) (Add y z) *)
+    (* LtNe _ _ (LtAdd x y z xly) h : False *)
+    False.elim (Eq _ x y) (LtNe _ _ (LtAdd x y z xly) h)
+    )
+    (fun rest =>
+    Or.elim _ _ _ rest
+    (fun (ylx: Lt y x) =>
+    False.elim (Eq _ x y) (LtNe _ _ (LtAdd y x z ylx) (Eq.symm _ _ _ h))
+    )
+    (fun (eqxy : Eq _ x y) => eqxy)
+    )

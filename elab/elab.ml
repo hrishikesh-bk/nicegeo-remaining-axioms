@@ -103,7 +103,7 @@ let valid_pattern_args (args: term list) : bool =
 
 let rec valid_pattern (e: t) (m: int) (args: term list) (tm: term) : bool =
   match tm with
-  | Hole m' -> if m = m' then (print_endline "hole contains itself"; false) else (match Hashtbl.find_opt e.metas m' with
+  | Hole m' -> if m = m' then ((*print_endline "hole contains itself";*) false) else (match Hashtbl.find_opt e.metas m' with
     | Some {sol=Some tm_sol; _} -> valid_pattern e m args tm_sol
     | _ -> true)
   | Fun (_, ty, body) -> valid_pattern e m args ty && valid_pattern e m args body
@@ -126,8 +126,8 @@ let rec pattern_match_meta (e: t) (m: int) (args: term list) (tm: term) : unit =
       pattern_match_meta e m (List.rev (List.tl (List.rev args))) f
     | _ -> failwith "too many arguments in pattern match for meta"
   else
-  if not (valid_pattern_args args) then print_endline "invalid arguments for pattern matching";
-  if not (valid_pattern e m args tm) then print_endline "invalid solution for meta";
+  if not (valid_pattern_args args) then print_endline "invalid arguments for pattern matching" else
+  if not (valid_pattern e m args tm) then (*print_endline "invalid solution for meta"*) () else
 
   (* just need to bind them now how hard can it be clueless *)
   (* could basically walk down term,  *)
