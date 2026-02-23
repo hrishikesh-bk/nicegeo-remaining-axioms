@@ -7,7 +7,7 @@ module KTerm = System_e_kernel.Term
 let sort_to_string = function
   | 0 -> "Prop"
   | 1 -> "Type"
-  | n -> "Type" ^ string_of_int n
+  | n -> "Sort" ^ string_of_int n
 
 (** [names] is for bound variables: index 0 = innermost binder (head of list).
     Empty string means use default "_0", "_1", etc. *)
