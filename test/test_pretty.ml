@@ -8,6 +8,7 @@ open E_elab.Pretty
 
 module KTerm = System_e_kernel.Term
 module ETerm = E_elab.Term
+module Elab = E_elab.Elab
 
 let () = Printf.printf "=== Kernel term pretty-printing ===\n\n"
 
@@ -50,24 +51,26 @@ let () =
 
 let () = Printf.printf "=== Elaborator term pretty-printing ===\n\n"
 
+let e = Elab.create ()
+
 (* Example 5: Elaborator terms have names already *)
 let () =
-  let t = ETerm.(Arrow ("A", Sort 1, Arrow ("B", Sort 0, Name "B"))) in
+  let t = ETerm.(Arrow (Some "A", Sort 1, Arrow (Some "B", Sort 0, Name "B"))) in
   Printf.printf "Elab term (A : Type) -> (B : Prop) -> B:\n";
-  Printf.printf "  %s\n\n" (term_to_string t)
+  Printf.printf "  %s\n\n" (term_to_string e t)
 
 (* Example 6: Declaration pretty-printing *)
 let () =
   let d = Axiom ("Point", ETerm.Sort 1) in
-  Printf.printf "Axiom Point : Type  =>  %s\n" (decl_to_string d);
+  Printf.printf "Axiom Point : Type  =>  %s\n" (decl_to_string e d);
   let d2 =
     Theorem
       ( "id",
-        ETerm.(Arrow ("A", Sort 1, Arrow ("x", Name "A", Name "A"))),
-        ETerm.(Fun ("A", Sort 1, Fun ("x", Name "A", Name "x"))) )
+        ETerm.(Arrow (Some "A", Sort 1, Arrow (Some "x", Name "A", Name "A"))),
+        ETerm.(Fun (Some "A", Sort 1, Fun (Some "x", Name "A", Name "x"))) )
   in
   Printf.printf "Theorem id : (A : Type) -> (x : A) -> A := ...  =>  %s\n\n"
-    (decl_to_string d2)
+    (decl_to_string e d2)
 
 let () = Printf.printf "=== Sanity checks (assertions) ===\n"
 
@@ -75,11 +78,11 @@ let test_kernel_sort_names () =
   assert (term_to_string_pretty (KTerm.Sort 0) = "Prop");
   assert (term_to_string_pretty (KTerm.Sort 1) = "Type")
 
-let test_elab_hole () = assert (term_to_string ETerm.Hole = "_")
+let test_elab_hole () = assert (term_to_string e (ETerm.Hole 0) = "?m0")
 
 let test_elab_arrow_no_name () =
-  let t = ETerm.(Arrow ("", Sort 1, Sort 0)) in
-  assert (term_to_string t = "Type -> Prop")
+  let t = ETerm.(Arrow (None, Sort 1, Sort 0)) in
+  assert (term_to_string e t = "Type -> Prop")
 
 let () =
   test_kernel_sort_names ();

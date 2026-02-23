@@ -2,7 +2,6 @@ open Decl
 open Term
 open Convert
 module KInfer = System_e_kernel.Infer
-open System_e_kernel.Exceptions
 module KTerm = System_e_kernel.Term
 
 exception InferHole
