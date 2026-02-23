@@ -281,39 +281,21 @@ Exists Point (fun (c : Point) =>
     And.elim1 _ _ _ center_and_on
     (fun (aaa : CenterCircle a aa) => fun (baa : OnCircle b aa) =>
 
-    Exists.elim _ _ _ (circle_of_ne b a (Ne.symm Point a b ab))
+    Exists.elim _ _ _ (circle_of_ne b a (Ne.symm _ _ _ ab))
     (fun (bb : Circle) => fun (b_center_and_on : And (CenterCircle b bb) (OnCircle a bb)) =>
 
     And.elim1 _ _ _ b_center_and_on
     (fun (bbb : CenterCircle b bb) (abb : OnCircle a bb) =>
 
-   	Exists.elim _ _ _ (PtsOfCirclesinter aa bb (circlesinter_of_inside_on_circle a b aa bb baa abb
+   	Exists.elim _ _ _ (pt_of_circlesinter aa bb (circlesinter_of_inside_on_circle a b aa bb baa abb
         (inside_circle_of_center a aa aaa) 
 		(inside_circle_of_center b bb bbb)
 	))
-    (fun (c : Point) (next_point_and_facts : (Exists Point (fun (d : Point) =>
-    And (Eq Point c d -> False) (
-    And (OnCircle c aa) (
-    And (OnCircle c bb) _))))) =>
+    (fun (c : Point) (facts : And (OnCircle c aa) (OnCircle c bb)) =>
 
-    Exists.elim _ _ _ next_point_and_facts
-    (fun (d : Point) (many_facts : 
-    And (Eq Point c d -> False) (
-    And (OnCircle c aa) (
-    And (OnCircle c bb) _))) =>
+    And.elim1 _ _ _ facts
+    (fun (caa : OnCircle c aa) (cbb : OnCircle c bb) =>
 
-    And.elim1 _ _ _ many_facts
-    (fun (ne_c_d : (Eq Point c d -> False)) (four_facts_left : 
-    And (OnCircle c aa) (
-    And (OnCircle c bb) _)) =>
-
-    And.elim1 _ _ _ four_facts_left
-    (fun (caa : OnCircle c aa) (three_facts_left : (
-    And (OnCircle c bb) (And (OnCircle d aa) (OnCircle d bb)))) =>
-
-    And.elim1 _ _ _ three_facts_left
-    (fun (cbb : OnCircle c bb) => fun rest =>
-    
     And.elim1 _ _ _ (OnCircleIffLengthEq b c a bb bbb cbb)
     (fun u1 (rtl_bc_ba : (OnCircle a bb -> Eq Len (Length b c) (Length b a))) =>
 
@@ -324,7 +306,7 @@ Exists Point (fun (c : Point) =>
 		And (Eq Len (Length a b) (Length a c))
 			(Eq Len (Length b c) (Length b a)))
     c (And.intro _ _ (rtl_ab_ac caa) (rtl_bc_ba abb))
-	)))))))))))
+	))))))))
 
 
 Theorem AddCancel : (x: Len) -> (y: Len) -> (z: Len) -> Eq _ (Add x z) (Add y z) -> Eq _ x y :=
