@@ -203,7 +203,7 @@ and infertype (e: ctx) (tm: term) : term =
     let ty_ret_ty = infertype e ty_ret_fvar in
     Hashtbl.remove e.lctx x;
     (match ty_arg_ty, ty_ret_ty with
-    | Sort n1, Sort n2 -> Sort (max n1 n2)
+    | Sort n1, Sort n2 -> if n2 = 0 then Sort 0 else Sort (max n1 n2)
     | _ -> failwith "expected types of arrow to be sorts")
   | App (f, arg) ->
     let f_type = infertype e f in
