@@ -273,6 +273,8 @@ let rec contains_fvar (tm: term) : bool =
   | App (f, arg) -> contains_fvar f || contains_fvar arg
   | _ -> false
 
+(* Needs to be trusted for faithfulness of meaning. This returns tm unchanged
+except for replacing metavariables with terms. *)
 let rec replace_metas (e: ctx) (tm: term) : term =
   match tm with
   | Hole m -> (match Hashtbl.find_opt e.metas m with
@@ -294,6 +296,8 @@ let rec replace_metas (e: ctx) (tm: term) : term =
     App (f_filled, arg_filled)
   | _ -> tm
 
+(* Needs to be trusted for faithfulness of meaning. This returns tm unchanged
+except for replacing holes with metavariable spines. *)
 let rec hole_to_meta (e: ctx) (stack: term list) (tm: term): term = 
   match tm with
   | Hole m ->
@@ -340,20 +344,25 @@ let rec list_axioms_used (e: ctx) (tm: term) : string list =
   | App (f, arg) -> union (list_axioms_used e f) (list_axioms_used e arg)
   | _ -> []
 
+(* Needs to be trusted for faithfulness of meaning *)
 let process_decl (e: ctx) (d: declaration) : unit =
   match d with
   | Theorem (name, ty, proof) ->
     if Hashtbl.mem e.env name then failwith ("theorem " ^ name ^ " already defined.\n") else
+    (* hole_to_meta only replaces holes explicitly typed in by the user as "_" with metavariable spines *)
     let ty_meta = hole_to_meta e [] ty in
     check_is_type e ty_meta;
+    (* replace_metas only fills in metavariables *)
     let ty_filled = replace_metas e ty_meta in
     Hashtbl.clear e.metas;
     let proof_meta = hole_to_meta e [] proof in
     checktype e proof_meta ty_filled;
     let proof_filled = replace_metas e proof_meta in
     Hashtbl.clear e.metas;
+    (* conv_to_kterm does a straightforward variant-to-variant conversion *)
     let ty_k = conv_to_kterm ty_filled in
     let proof_k = conv_to_kterm proof_filled in
+
     let inferredType = KInfer.inferType e.kenv (Hashtbl.create 0) proof_k in
     let isValidProof = KInfer.isDefEq e.kenv (Hashtbl.create 0) inferredType ty_k in
 
@@ -363,13 +372,14 @@ let process_decl (e: ctx) (d: declaration) : unit =
     else
       failwith ("invalid proof of " ^ name ^ ".\n")
   | Axiom (name, ty) ->
-    (* print_endline ("processing axiom " ^ name ^ " of type " ^ term_to_string e ty); *)
     if Hashtbl.mem e.env name then failwith ("axiom " ^ name ^ " already defined.\n") else
+    (* hole_to_meta only replaces holes explicitly typed in by the user as "_" with metavariable spines *)
     let ty_meta = hole_to_meta e [] ty in
     check_is_type e ty_meta;
-    let ty_filled = try replace_metas e ty_meta with Failure msg -> failwith ("failed to replace metas in axiom " ^ name ^ " of type " ^ term_to_string e ty_meta ^ ": " ^ msg) in
-
+    (* replace_metas only fills in metavariables *)
+    let ty_filled = replace_metas e ty_meta in
     Hashtbl.clear e.metas;
+    (* conv_to_kterm does a straightforward variant-to-variant conversion *)
     let ty_k = conv_to_kterm ty_filled in
     Hashtbl.add e.env name {name = name; ty = ty_filled; data = Axiom};
     Hashtbl.add e.kenv name ty_k 
