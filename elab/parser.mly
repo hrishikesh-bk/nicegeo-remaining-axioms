@@ -16,23 +16,55 @@ term:
   | t = app_term { t }
   | FUN params = list(param_group) ARROW body = term
     {
+      let loc = { Term.start = $startpos; Term.end_ = $endpos } in
       let params_flat = List.concat params in
-      List.fold_right (fun (x,ty) acc -> Term.Fun (Some x, ty, Term.bind_bvar acc 0 (Term.Name x))) params_flat body
+      List.fold_right
+        (fun (x, ty) acc ->
+           let pat = (Term.Name x, loc) in
+           (Term.Fun (Some x, ty, Term.bind_bvar acc 0 pat), loc))
+        params_flat body
     }
   | LPAREN x = IDENT COLON ty = term RPAREN FORALL rettype = term
-    { Term.Arrow (Some x, ty, Term.bind_bvar rettype 0 (Term.Name x)) }
+    {
+      let loc = { Term.start = $startpos; Term.end_ = $endpos } in
+      let pat = (Term.Name x, loc) in
+      (Term.Arrow (Some x, ty, Term.bind_bvar rettype 0 pat), loc)
+    }
   | ty = app_term FORALL rettype = term
-    { Term.Arrow (None, ty, rettype) }
+    {
+      let loc = { Term.start = $startpos; Term.end_ = $endpos } in
+      (Term.Arrow (None, ty, rettype), loc)
+    }
 
 app_term:
   | t = atomic_term { t }
-  | f = app_term arg = atomic_term { Term.App (f, arg) }
+  | f = app_term arg = atomic_term
+    {
+      let loc = { Term.start = $startpos; Term.end_ = $endpos } in
+      (Term.App (f, arg), loc)
+    }
 
 atomic_term:
-  | UNDERSCORE { Term.Hole (Term.gen_hole_id ()) }
-  | x = IDENT { Term.Name x }
-  | TYPE { Term.Sort 1 }
-  | PROP { Term.Sort 0 }
+  | UNDERSCORE
+    {
+      let loc = { Term.start = $startpos; Term.end_ = $endpos } in
+      (Term.Hole (Term.gen_hole_id ()), loc)
+    }
+  | x = IDENT
+    {
+      let loc = { Term.start = $startpos; Term.end_ = $endpos } in
+      (Term.Name x, loc)
+    }
+  | TYPE
+    {
+      let loc = { Term.start = $startpos; Term.end_ = $endpos } in
+      (Term.Sort 1, loc)
+    }
+  | PROP
+    {
+      let loc = { Term.start = $startpos; Term.end_ = $endpos } in
+      (Term.Sort 0, loc)
+    }
   | LPAREN t = term RPAREN { t }
 
 idlist:
@@ -41,4 +73,8 @@ idlist:
 
 param_group:
   | LPAREN xs = idlist COLON ty = term RPAREN { List.map (fun x -> (x, ty)) xs }
-  | x = IDENT { [(x, Term.Hole (Term.gen_hole_id ()))] }
+  | x = IDENT
+    {
+      let loc = { Term.start = $startpos; Term.end_ = $endpos } in
+      [(x, (Term.Hole (Term.gen_hole_id ()), loc))]
+    }
