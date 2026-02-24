@@ -315,12 +315,47 @@ let test_len_app () =
     assert false
   with TypeError _ -> ()
 
+let test_kernel_reduce () = 
+  (* (fun (p1: Point) => (fun (p2: Point) => p2)) p) l *)
+  (* should be reduced to (fun (p2: Point) => p2) l then to l *)
+  let env = mk_env () in
+  let lctx = Hashtbl.create 16 in
+  let term = App (App (Lam (Const "Point", Lam (Const "Point", Bvar 0)), Const "p"), Const "l") in
+  let reduced = reduce env lctx term in
+  assert (reduced = Const "l");
+
+  (* fun (x: (fun a => Point) p) => x is well-typed and should not fail inference *)
+  (* (reduces to fun (x: Point) => x) *)
+  let term = Lam (App (Lam (Const "Point", Const "Point"), Const "p"), Bvar 0) in
+  assert (isDefEq env lctx (inferType env lctx term) (Forall (Const "Point", Const "Point")));
+  (* (fun a => Point) p -> Point is well-typed and should not fail inference *)
+  (* (reduces to Point -> Point) *)
+  let term = Forall (App (Lam (Const "Point", Const "Point"), Const "p"), Const "Point") in
+  assert (isDefEq env lctx (inferType env lctx term) (Sort 1));
+  (* Point -> (fun a => Point) p *)
+  let term = Forall (Const "Point", App (Lam (Const "Point", Const "Point"), Const "p")) in
+  assert (isDefEq env lctx (inferType env lctx term) (Sort 1));
+  (* (fun a => Point) p -> (fun a => Point) p *)
+  let term = Forall (App (Lam (Const "Point", Const "Point"), Const "p"), App (Lam (Const "Point", Const "Point"), Const "p")) in
+  assert (isDefEq env lctx (inferType env lctx term) (Sort 1));
+
+  (* f: Point -> (fun a => Type) p *)
+  (* (reduces to f: Point -> Type) *)
+  Hashtbl.add env "f" (Forall (Const "Point", App (Lam (Const "Point", Sort 1), Const "p")));
+  (* f p -> Point should not fail *)
+  let term = Forall(App (Const "f", Const "p"), Const "Point") in
+  assert (isDefEq env lctx (inferType env lctx term) (Sort 1));
+  let term = Forall(Const "Point", App (Const "f", Const "p")) in
+  assert (isDefEq env lctx (inferType env lctx term) (Sort 1));
+  let term = Forall(App (Const "f", Const "p"), App (Const "f", Const "p")) in
+  assert (isDefEq env lctx (inferType env lctx term) (Sort 1))
 
 let () =
   (* Taken from https://stackoverflow.com/questions/65868770/lack-of-information-when-ocaml-crashes#comment128358969_65873074,
   turns on stack traces *)
   record_backtrace true;
 
+  test_kernel_reduce ();
   test_const_lookup ();
   test_fvar_lookup ();
   test_fvar_unknown_fails ();

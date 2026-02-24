@@ -49,6 +49,7 @@ let gen_new_fvar_name () : string =
 let rec reduce (env : environment) (localCtx : localcontext) (t : term) : term =
   match t with
   | App (func, arg) -> 
+    (* we need to reduce the func before matching if it's a Lam in the case of nested applications *)
     let reduced_func = reduce env localCtx func in
     let reduced_arg = reduce env localCtx arg in
     (match reduced_func with
@@ -145,7 +146,7 @@ let rec inferType (env : environment) (localCtx : localcontext) (t : term) : ter
   | Lam (domainType, body) -> (
       let new_fvar_name = gen_new_fvar_name () in
       let domainTypeType = inferType env localCtx domainType in
-      if not (isSort env (reduce env localCtx domainTypeType)) then
+      if not (isSort env domainTypeType) then
         (* Invalid domain type for lambda *)
         let err_kind = LamDomainError in
         raise (TypeError {env; ctx = localCtx; trm = t; err_kind})
