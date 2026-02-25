@@ -31,4 +31,5 @@ and comment = parse
   | "*)"        { () }
   | "(*"        { comment lexbuf; comment lexbuf }
   | eof         { failwith "Unterminated comment" }
+  | newline     { Lexing.new_line lexbuf; comment lexbuf }
   | _           { comment lexbuf }

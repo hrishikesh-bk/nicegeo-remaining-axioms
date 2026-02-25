@@ -25,9 +25,16 @@ let rec flatten_app t =
       (head, args @ [a])
   | _ -> (t, [])
 
+let ctr = ref 0
+
+let gen_fresh_name () =
+  let name = "x" ^ string_of_int !ctr in
+  incr ctr;
+  name
+
 let opt_name_to_string = function
   | Some x -> x
-  | None -> "_"
+  | None -> gen_fresh_name ()
 
 let bvar_to_string (bctx : string list) (idx : int) : string =
   if idx < List.length bctx then List.nth bctx idx else "_" ^ string_of_int idx
@@ -37,7 +44,33 @@ let fvar_to_string (e : Types.ctx) (idx : int) : string =
   | Some (Some name, _) -> name
   | _ -> "f" ^ string_of_int idx
 
+let rec reduce (e: Types.ctx) (tm: term) : term =
+  match fst tm with
+  | App (f, arg) -> 
+    let fn = reduce e f in
+    (match fst fn with
+    | Fun (_, _, body) -> reduce e (replace_bvar body 0 arg)
+    | _ -> (App (fn, arg), snd tm))
+  (* do we need to recurse into holes? possibly *)
+  | Hole m -> (match Hashtbl.find_opt e.metas m with
+    | Some {sol=Some tm_sol; _} -> reduce e tm_sol
+    | _ -> tm)
+  | Fun (arg, ty, body) -> 
+    let x = gen_fvar_id () in 
+    let ty' = reduce e ty in
+    let body' = reduce e (replace_bvar body 0 (Fvar x, snd tm)) in
+    let body'' = bind_bvar body' 0 (Fvar x, snd tm) in
+    (Fun (arg, ty', body''), snd tm)
+  | Arrow (arg, ty, ret) ->
+    let x = gen_fvar_id () in
+    let ty' = reduce e ty in
+    let ret' = reduce e (replace_bvar ret 0 (Fvar x, snd tm)) in
+    let ret'' = bind_bvar ret' 0 (Fvar x, snd tm) in
+    (Arrow (arg, ty', ret''), snd tm)
+  | _ -> tm
+
 let rec term_to_string_with (e : Types.ctx) (bctx : string list) (t : term) : string =
+  let t = reduce e t in
   match fst t with
   | Name x -> x
   | Bvar idx -> bvar_to_string bctx idx
@@ -45,7 +78,7 @@ let rec term_to_string_with (e : Types.ctx) (bctx : string list) (t : term) : st
   | Hole idx -> (
       match Hashtbl.find_opt e.metas idx with
       | Some { sol = Some tm_sol; _ } ->
-          "?m" ^ string_of_int idx ^ " := " ^ term_to_string_with e bctx tm_sol
+          term_to_string_with e bctx tm_sol
       | _ -> "?m" ^ string_of_int idx
     )
   | Sort n -> sort_to_string n

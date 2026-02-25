@@ -90,7 +90,7 @@ let pp_exn (e: Types.ctx) (info: elab_error_info) : string =
   | AlreadyDefined name ->
       Printf.sprintf "Error in %s: %s is already defined" decl_str name
   | TypeMismatch { term; inferred_type; expected_type } ->
-      Printf.sprintf "Type mismatch in %s at %s: term '%s' has type '%s' but expected '%s'" decl_str loc_str (Pretty.term_to_string e term) (Pretty.term_to_string e inferred_type) (Pretty.term_to_string e expected_type)
+      Printf.sprintf "Type mismatch in %s at %s: term\n%s\nhas type\n%s\nbut expected\n%s\n" decl_str loc_str (Pretty.term_to_string e term) (Pretty.term_to_string e inferred_type) (Pretty.term_to_string e expected_type)
   | CannotInferHole ->
       Printf.sprintf "Cannot infer type of hole in %s at %s" decl_str loc_str
   | KernelError { kernel_exn } ->
@@ -100,7 +100,7 @@ let pp_exn (e: Types.ctx) (info: elab_error_info) : string =
   | InternalError msg ->
       Printf.sprintf "Internal error in %s at %s: %s" decl_str loc_str msg
   | FunctionExpected { not_func; not_func_type; arg } ->
-      Printf.sprintf "Expected a function in %s at %s, but got '%s' of type '%s' when applying to argument '%s'" decl_str loc_str (Pretty.term_to_string e not_func) (Pretty.term_to_string e not_func_type) (Pretty.term_to_string e arg)
+      Printf.sprintf "Expected a function in %s at %s, but got\n%s\nof type\n%s\nwhen applying to argument\n%s\n" decl_str loc_str (Pretty.term_to_string e not_func) (Pretty.term_to_string e not_func_type) (Pretty.term_to_string e arg)
   | TypeExpected { not_type; not_type_infer } ->
-      Printf.sprintf "Expected a type in %s at %s, but got '%s' which has type '%s'" decl_str loc_str (Pretty.term_to_string e not_type) (Pretty.term_to_string e not_type_infer)
+      Printf.sprintf "Expected a type in %s at %s, but got\n%s\nwhich has type\n%s\n" decl_str loc_str (Pretty.term_to_string e not_type) (Pretty.term_to_string e not_type_infer)
 
