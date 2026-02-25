@@ -47,22 +47,23 @@ let () =
 let () = Printf.printf "=== Elaborator term pretty-printing ===\n\n"
 
 let e = Elab.create ()
+let l = ETerm.dummy_range
 
 (* Example 5: Elaborator terms have names already *)
 let () =
-  let t = ETerm.(Arrow (Some "A", Sort 1, Arrow (Some "B", Sort 0, Bvar 0))) in
+  let t = ETerm.((Arrow (Some "A", (Sort 1, l), (Arrow (Some "B", (Sort 0, l), (Bvar 0, l)), l)), l)) in
   Printf.printf "Elab term (A : Type) -> (B : Prop) -> B:\n";
   Printf.printf "  %s\n\n" (term_to_string e t)
 
 (* Example 6: Declaration pretty-printing *)
 let () =
-  let d = Axiom ("Point", ETerm.Sort 1) in
+  let d = Axiom ("Point", ETerm.(Sort 1, l)) in
   Printf.printf "Axiom Point : Type  =>  %s\n" (decl_to_string e d);
   let d2 =
     Theorem
       ( "id",
-        ETerm.(Arrow (Some "A", Sort 1, Arrow (Some "x", Name "A", Bvar 1))),
-        ETerm.(Fun (Some "A", Sort 1, Fun (Some "x", Name "A", Bvar 0))) )
+        ETerm.((Arrow (Some "A", (Sort 1, l), (Arrow (Some "x", (Name "A", l), (Bvar 1, l)), l)), l)),
+        ETerm.(Fun (Some "A", (Sort 1, l), (Fun (Some "x", (Name "A", l), (Bvar 0, l)), l)), l) )
   in
   Printf.printf "Theorem id : (A : Type) -> (x : A) -> A := ...  => \n%s\n\n"
     (decl_to_string e d2)
@@ -73,10 +74,10 @@ let test_kernel_sort_names () =
   assert (term_to_string_pretty (KTerm.Sort 0) = "Prop");
   assert (term_to_string_pretty (KTerm.Sort 1) = "Type")
 
-let test_elab_hole () = assert (term_to_string e (ETerm.Hole 0) = "?m0")
+let test_elab_hole () = assert (term_to_string e (ETerm.Hole 0, l) = "?m0")
 
 let test_elab_arrow_no_name () =
-  let t = ETerm.(Arrow (None, Sort 1, Sort 0)) in
+  let t = ETerm.(Arrow (None, (Sort 1, l), (Sort 0, l)), l) in
   assert (term_to_string e t = "Type -> Prop")
 
 let () =

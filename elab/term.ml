@@ -1,4 +1,11 @@
 type range = { start: Lexing.position; end_: Lexing.position }
+let dummy_pos : Lexing.position = {
+  pos_fname = "";
+  pos_lnum = 0;
+  pos_bol = 0;
+  pos_cnum = 0;
+}
+let dummy_range : range = { start = dummy_pos; end_ = dummy_pos }
 
 type term = term' * range
 and term' =

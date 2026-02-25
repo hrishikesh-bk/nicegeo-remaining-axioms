@@ -63,6 +63,6 @@ let pp_locals locals =
     in
     "locals:\n" ^ lines ^ "\n"
 
-let pp_exn (e: elab_error_info) : string =
+let pp_exn (_e: elab_error_info) : string =
   failwith "todo"
 

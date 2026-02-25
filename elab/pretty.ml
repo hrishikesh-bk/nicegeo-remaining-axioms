@@ -13,17 +13,17 @@ let sort_to_string = function
   | 1 -> "Type"
   | n -> "Sort " ^ string_of_int n
 
-let is_atomic = function
+let is_atomic x = match fst x with
   | Name _ | Bvar _ | Fvar _ | Hole _ | Sort _ -> true
   | Fun _ | Arrow _ | App _ -> false
 
 (** Flatten application spine. *)
 let rec flatten_app t =
-  match t with
+  match fst t with
   | App (f, a) ->
       let head, args = flatten_app f in
       (head, args @ [a])
-  | other -> (other, [])
+  | _ -> (t, [])
 
 let opt_name_to_string = function
   | Some x -> x
@@ -38,7 +38,7 @@ let fvar_to_string (e : Types.ctx) (idx : int) : string =
   | _ -> "f" ^ string_of_int idx
 
 let rec term_to_string_with (e : Types.ctx) (bctx : string list) (t : term) : string =
-  match t with
+  match fst t with
   | Name x -> x
   | Bvar idx -> bvar_to_string bctx idx
   | Fvar idx -> fvar_to_string e idx
