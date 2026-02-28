@@ -22,7 +22,7 @@ jobs:
         run: |
           PROJECT_ID=$(gh project view $PROJECT_NUMBER --owner "$OWNER" --format json -q '.id')
           ITEM_ID=$(gh project item-list $PROJECT_NUMBER --owner "$OWNER" --format json -L 500 \
-            -q ".items[] | select(.content.number == \"$ISSUE_NUMBER\") | .id")
+            -q ".items[] | select(.content.number == $ISSUE_NUMBER) | .id")
           
           PRIORITY=$(echo "$LABEL" | sed 's/Priority: //')
 
