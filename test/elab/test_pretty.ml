@@ -47,19 +47,19 @@ let l = ETerm.dummy_range
 
 (* Example 5: Elaborator terms have names already *)
 let () =
-  let t = ETerm.((Arrow (Some "A", (Sort 1, l), (Arrow (Some "B", (Sort 0, l), (Bvar 0, l)), l)), l)) in
+  let t = {ETerm.inner=Arrow (Some "A", {ETerm.inner=Sort 1; loc=l}, {ETerm.inner=Arrow (Some "B", {ETerm.inner=Sort 0; loc=l}, {ETerm.inner=Bvar 0; loc=l}); loc=l}); loc=l} in
   Printf.printf "Elab term (A : Type) -> (B : Prop) -> B:\n";
   Printf.printf "  %s\n\n" (term_to_string e t)
 
 (* Example 6: Declaration pretty-printing *)
 let () =
-  let d = Axiom ("Point", l, ETerm.(Sort 1, l)) in
+  let d = Axiom ("Point", l, {ETerm.inner=Sort 1; loc=l}) in
   Printf.printf "Axiom Point : Type  =>  %s\n" (decl_to_string e d);
   let d2 =
     Theorem
       ( "id", l,
-        ETerm.((Arrow (Some "A", (Sort 1, l), (Arrow (Some "x", (Name "A", l), (Bvar 1, l)), l)), l)),
-        ETerm.(Fun (Some "A", (Sort 1, l), (Fun (Some "x", (Name "A", l), (Bvar 0, l)), l)), l) )
+        {ETerm.inner=Arrow (Some "A", {ETerm.inner=Sort 1; loc=l}, {ETerm.inner=Arrow (Some "x", {ETerm.inner=Name "A"; loc=l}, {ETerm.inner=Bvar 1; loc=l}); loc=l}); loc=l},
+        {ETerm.inner=Fun (Some "A", {ETerm.inner=Sort 1; loc=l}, {ETerm.inner=Fun (Some "x", {ETerm.inner=Name "A"; loc=l}, {ETerm.inner=Bvar 0; loc=l}); loc=l}); loc=l} )
   in
   Printf.printf "Theorem id : (A : Type) -> (x : A) -> A := ...  => \n%s\n\n"
     (decl_to_string e d2)
@@ -76,10 +76,10 @@ let test_kernel_sort_names () =
 let test_elab_hole () =
   Alcotest.check' Alcotest.string ~msg:"Hole 0 pretty-prints as ?m0"
     ~expected:"?m0"
-    ~actual:(term_to_string e (ETerm.Hole 0, l))
+    ~actual:(term_to_string e {ETerm.inner=Hole 0; loc=l})
 
 let test_elab_arrow_no_name () =
-  let t = ETerm.(Arrow (None, (Sort 1, l), (Sort 0, l)), l) in
+  let t = {ETerm.inner=Arrow (None, {ETerm.inner=Sort 1; loc=l}, {ETerm.inner=Sort 0; loc=l}); loc=l} in
   Alcotest.check' Alcotest.string ~msg:"arrow pretty-prints sorts"
     ~expected:"Type -> Prop" ~actual:(term_to_string e t)
 

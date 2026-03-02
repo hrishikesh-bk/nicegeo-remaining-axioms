@@ -6,7 +6,7 @@ module KInfer = System_e_kernel.Infer
 module KExceptions = System_e_kernel.Exceptions
 
 let raise_at (tm: term) (e: Error.error_type) : 'a =
-  let loc = Some (snd tm) in
+  let loc = Some tm.loc in
   raise (Error.ElabError { context = { loc; decl_name = None }; error_type = e })
 
 type normterm =
@@ -17,7 +17,7 @@ type normterm =
   | Sort of int
 
 let rec term_to_string (e: ctx) (tm: term) : string =
-  match fst tm with
+  match tm.inner with
   | Name name -> name
   | Bvar idx -> "Bvar(" ^ string_of_int idx ^ ")"
   | Fvar idx -> 
@@ -39,12 +39,12 @@ let rec term_to_string (e: ctx) (tm: term) : string =
   | Sort n -> "Sort(" ^ string_of_int n ^ ")"
 
 let rec whnf_beta (e: ctx) (tm: term) : term =
-  match fst tm with
+  match tm.inner with
   | App (f, arg) -> 
     let fn = whnf_beta e f in
-    (match fst fn with
+    (match fn.inner with
     | Fun (_, _, body) -> whnf_beta e (replace_bvar body 0 arg)
-    | _ -> (App (fn, arg), snd tm))
+    | _ -> {inner=App (fn, arg); loc=tm.loc})
   (* do we need to recurse into holes? possibly *)
   | Hole m -> (match Hashtbl.find_opt e.metas m with
     | Some {sol=Some tm_sol; _} -> whnf_beta e tm_sol
@@ -53,7 +53,7 @@ let rec whnf_beta (e: ctx) (tm: term) : term =
 
 (* precondition: tm is already in whnf (call whnf_beta) *)
 let rec to_norm (e: ctx) (tm : term) : normterm =
-  match fst tm with
+  match tm.inner with
   | Fun (arg, ty_arg, body) -> Fun (arg, ty_arg, body)
   | Arrow (arg, ty_arg, ty_ret) -> Arrow (arg, ty_arg, ty_ret)
   | App (f, arg) -> 
@@ -62,34 +62,34 @@ let rec to_norm (e: ctx) (tm : term) : normterm =
     | VarSpine (head, args) -> VarSpine (head, args @ [arg])
     | MetaSpine (head, args) -> MetaSpine (head, args @ [arg])
     | Fun _ -> raise_at tm (Error.InternalError "to_norm input should already be in whnf")
-    | Arrow (n, ty_arg, ty_ret) -> raise_at tm (Error.FunctionExpected { not_func = tm; not_func_type = (Arrow (n, ty_arg, ty_ret), snd tm); arg = arg })
-    | Sort n -> raise_at tm (Error.FunctionExpected { not_func = tm; not_func_type = (Sort n, snd tm); arg = arg }))
+    | Arrow (n, ty_arg, ty_ret) -> raise_at tm (Error.FunctionExpected { not_func = tm; not_func_type = {inner=Arrow (n, ty_arg, ty_ret); loc=tm.loc}; arg = arg })
+    | Sort n -> raise_at tm (Error.FunctionExpected { not_func = tm; not_func_type = {inner=Sort n; loc=tm.loc}; arg = arg }))
   | Name _ | Bvar _ | Fvar _ -> VarSpine (tm, [])
   | Sort n -> Sort n
   | Hole _ -> MetaSpine (tm, [])
 
 
 let valid_pattern_args (args: term list) : bool =
-  if List.exists (fun arg -> match fst arg with | Fvar _ -> false | _ -> true) args then false else
+  if List.exists (fun arg -> match arg.inner with | Fvar _ -> false | _ -> true) args then false else
   let rec check_args seen_args args =
     match args with
     | [] -> true
     | arg :: rest ->
-      if List.exists (fun seen_arg -> match (seen_arg, fst arg) with
+      if List.exists (fun seen_arg -> match (seen_arg, arg.inner) with
         | (Fvar idx1, Fvar idx2) when idx1 = idx2 -> true
         | _ -> false) seen_args then false
-      else check_args (fst arg :: seen_args) rest
+      else check_args (arg.inner :: seen_args) rest
   in check_args [] args
 
 let rec valid_pattern (e: ctx) (m: int) (args: term list) (tm: term) : bool =
-  match fst tm with
+  match tm.inner with
   | Hole m' -> if m = m' then ((*print_endline "hole contains itself";*) false) else (match Hashtbl.find_opt e.metas m' with
     | Some {sol=Some tm_sol; _} -> valid_pattern e m args tm_sol
     | _ -> true)
   | Fun (_, ty, body) -> valid_pattern e m args ty && valid_pattern e m args body
   | Arrow (_, ty, ret) -> valid_pattern e m args ty && valid_pattern e m args ret
   | App (f, arg) -> valid_pattern e m args f && valid_pattern e m args arg
-  | Fvar _ -> List.exists (fun arg -> fst arg = fst tm) args
+  | Fvar _ -> List.exists (fun arg -> arg.inner = tm.inner) args
   | _ -> true
 
 let rec last = function
@@ -101,8 +101,8 @@ let rec pattern_match_meta (e: ctx) (m: int) (args: term list) (tm: term) : unit
   (* print_endline ("pattern matching meta " ^ string_of_int m ^ " with args " ^ String.concat " " (List.map (term_to_string e) args) ^ " against term " ^ term_to_string e tm); *)
   (* uhh get rid of the last matching args? *)
   if List.length (Hashtbl.find e.metas m).vartypes < List.length args then
-    match fst tm with
-    | App (f, arg) when fst (last args) = fst arg -> 
+    match tm.inner with
+    | App (f, arg) when (last args).inner = arg.inner -> 
       pattern_match_meta e m (List.rev (List.tl (List.rev args))) f
     | _ -> () (* we could like, infer the type of the rest of the args *)
   else
@@ -118,7 +118,7 @@ let rec pattern_match_meta (e: ctx) (m: int) (args: term list) (tm: term) : unit
     | arg :: rest ->
       let tm_with_arg = bind_bvar tm 0 arg in
       let tm_fun = Term.Fun (None, List.hd types, tm_with_arg) in
-      fold (tm_fun, snd tm) rest (List.tl types)
+      fold {inner=tm_fun; loc=tm.loc} rest (List.tl types)
   in
 
   Hashtbl.replace e.metas m { (Hashtbl.find e.metas m) with sol = Some (fold tm (List.rev args) (List.rev (Hashtbl.find e.metas m).vartypes)) }
@@ -131,31 +131,31 @@ let rec unify (e: ctx) (t1: term) (t2: term) : unit =
   let nt2 = to_norm e t2 in
   (* t1 and t2 should be closed under the current e *)
   match (nt1, nt2) with
-  | MetaSpine ((Hole m1, _), args1), MetaSpine ((Hole m2, l2), args2) -> 
+  | MetaSpine ({inner=Hole m1; _}, args1), MetaSpine ({inner=Hole m2; loc=l2}, args2) -> 
     (* could theoretically do some freaky stuff here *)
     if List.length args1 != List.length args2 then print_endline "tried to unify different length meta spines" else
     if m1 = m2 then () else
     let (m1, m2) = if m1 < m2 then (m1, m2) else (m2, m1) in
-    Hashtbl.replace e.metas m1 { (Hashtbl.find e.metas m1) with sol = Some ((Hole m2, l2)) };
+    Hashtbl.replace e.metas m1 { (Hashtbl.find e.metas m1) with sol = Some {inner=Hole m2; loc=l2} };
     List.iter2 (fun arg1 arg2 -> unify e arg1 arg2) args1 args2
-  | MetaSpine ((Hole m, _), args), _ ->
+  | MetaSpine ({inner=Hole m; _}, args), _ ->
     pattern_match_meta e m args t2
-  | _, MetaSpine ((Hole m, _), args) ->
+  | _, MetaSpine ({inner=Hole m; _}, args) ->
     pattern_match_meta e m args t1
-  | VarSpine (h1, args1), VarSpine (h2, args2) when fst h1 = fst h2 ->
+  | VarSpine (h1, args1), VarSpine (h2, args2) when h1.inner = h2.inner ->
     if List.length args1 != List.length args2 then failwith "tried to unify different length var spines" else
     List.iter2 (fun arg1 arg2 -> unify e arg1 arg2) args1 args2
-  | Arrow (_, ty_arg1, (ty_ret1, l1)), Arrow (_, ty_arg2, (ty_ret2, l2)) ->
+  | Arrow (_, ty_arg1, ty_ret1), Arrow (_, ty_arg2, ty_ret2) ->
     unify e ty_arg1 ty_arg2;
     let x = gen_fvar_id () in
-    let ty_ret1_fvar = replace_bvar (ty_ret1, l1) 0 (Fvar x, l1) in
-    let ty_ret2_fvar = replace_bvar (ty_ret2, l2) 0 (Fvar x, l2) in
+    let ty_ret1_fvar = replace_bvar ty_ret1 0 {inner=Fvar x; loc=ty_ret1.loc} in
+    let ty_ret2_fvar = replace_bvar ty_ret2 0 {inner=Fvar x; loc=ty_ret2.loc} in
     unify e ty_ret1_fvar ty_ret2_fvar
-  | Fun (_, ty_arg1, (body1, l1)), Fun (_, ty_arg2, (body2, l2)) -> (* todo: eta i think here? *)
+  | Fun (_, ty_arg1, body1), Fun (_, ty_arg2, body2) -> (* todo: eta i think here? *)
     unify e ty_arg1 ty_arg2;
     let x = gen_fvar_id () in
-    let body1_fvar = replace_bvar (body1, l1) 0 (Fvar x, l1) in
-    let body2_fvar = replace_bvar (body2, l2) 0 (Fvar x, l2) in
+    let body1_fvar = replace_bvar body1 0 {inner=Fvar x; loc=body1.loc} in
+    let body2_fvar = replace_bvar body2 0 {inner=Fvar x; loc=body2.loc} in
     unify e body1_fvar body2_fvar
   | Sort n1, Sort n2 when n1 = n2 -> ()
   | _ -> failwith ("failed to unify non-matching terms " ^ term_to_string e t1 ^ " and " ^ term_to_string e t2)
@@ -164,7 +164,7 @@ let rec unify (e: ctx) (t1: term) (t2: term) : unit =
 (* if it fails it throws an exception. todo: use actual exceptions *)
 let rec checktype (e: ctx) (tm: term) (ty: term) : unit =
   (* print_endline ("checking " ^ term_to_string e tm ^ " has type " ^ term_to_string e ty); *)
-  match fst tm with 
+  match tm.inner with 
   | Hole m ->
     (match Hashtbl.find_opt e.metas m with
     | Some {ty=ty1; vartypes; sol} -> 
@@ -178,7 +178,7 @@ let rec checktype (e: ctx) (tm: term) (ty: term) : unit =
       with Failure _ -> raise_at tm (Error.TypeMismatch { term = tm; inferred_type = tm_type; expected_type = ty }))
     with Error.ElabError {error_type = Error.CannotInferHole; _} ->
       let argtype = infertype e arg in
-      checktype e f (Arrow (None, argtype, ty), snd ty))
+      checktype e f {inner=Arrow (None, argtype, ty); loc=ty.loc})
   | Name _ | Fun _ | Arrow _ | Sort _ | Fvar _ ->
     let infer_ty = infertype e tm in
     (try unify e infer_ty ty with
@@ -187,37 +187,37 @@ let rec checktype (e: ctx) (tm: term) (ty: term) : unit =
   
 and infertype (e: ctx) (tm: term) : term =
   (* print_endline ("inferring type of " ^ term_to_string e tm); *)
-  let res = match fst tm with
+  let res = match tm.inner with
   | Hole _ -> raise_at tm (Error.CannotInferHole)
   | Name name ->
     (match Hashtbl.find_opt e.env name with
       | Some entry -> entry.ty
       | None -> raise_at tm (Error.UnknownName { name }))
-  | Fun (arg, ty_arg, (body, l)) ->
+  | Fun (arg, ty_arg, body) ->
     check_is_type e ty_arg;
     let x = gen_fvar_id () in
-    let body_fvar = replace_bvar (body, l) 0 (Fvar x, l) in
+    let body_fvar = replace_bvar body 0 {inner=Fvar x; loc=body.loc} in
     Hashtbl.add e.lctx x (arg, ty_arg);
     let ty_body = infertype e body_fvar in
-    let ty_body = bind_bvar ty_body 0 (Fvar x, l) in
+    let ty_body = bind_bvar ty_body 0 {inner=Fvar x; loc=body.loc} in
     Hashtbl.remove e.lctx x;
-    (Arrow (arg, ty_arg, ty_body), snd tm)
-  | Arrow (arg, ty_arg, (ty_ret, l)) ->
+    {inner=Arrow (arg, ty_arg, ty_body); loc=tm.loc}
+  | Arrow (arg, ty_arg, ty_ret) ->
     check_is_type e ty_arg;
     let ty_arg_ty = infertype e ty_arg in
     let x = gen_fvar_id () in
-    let ty_ret_fvar = replace_bvar (ty_ret, l) 0 (Fvar x, l) in
+    let ty_ret_fvar = replace_bvar ty_ret 0 {inner=Fvar x; loc=ty_ret.loc} in
     Hashtbl.add e.lctx x (arg, ty_arg);
     check_is_type e ty_ret_fvar;
     let ty_ret_ty = infertype e ty_ret_fvar in
     Hashtbl.remove e.lctx x;
-    (match fst ty_arg_ty, fst ty_ret_ty with
-    | Sort n1, Sort n2 -> (Sort (if n2 = 0 then 0 else max n1 n2), snd tm)
-    | Sort _, _ -> raise_at (ty_ret, l) (Error.TypeExpected { not_type = (ty_ret, l); not_type_infer = ty_ret_ty })
+    (match ty_arg_ty.inner, ty_ret_ty.inner with
+    | Sort n1, Sort n2 -> {inner=Sort (if n2 = 0 then 0 else max n1 n2); loc=tm.loc}
+    | Sort _, _ -> raise_at ty_ret (Error.TypeExpected { not_type = ty_ret; not_type_infer = ty_ret_ty })
     | _ -> raise_at ty_arg (Error.TypeExpected { not_type = ty_arg; not_type_infer = ty_arg_ty }))
   | App (f, arg) ->
     let f_type = infertype e f in
-    (match fst f_type with
+    (match f_type.inner with
     | Arrow (_, ty_arg, ty_ret) ->
       check_is_type e ty_arg;
       checktype e arg ty_arg;
@@ -228,7 +228,7 @@ and infertype (e: ctx) (tm: term) : term =
     (match Hashtbl.find_opt e.lctx fvar with
     | Some (_, ty) -> ty
     | None -> raise_at tm (Error.InternalError "unknown free variable in infertype"))
-  | Sort n -> (Sort (n + 1), snd tm)
+  | Sort n -> {inner=Sort (n + 1); loc=tm.loc}
   in 
   (* print_endline ("inferred type " ^ term_to_string e res ^ " for term " ^ term_to_string e tm); *)
   res
@@ -236,7 +236,7 @@ and infertype (e: ctx) (tm: term) : term =
 
 and check_is_type (e: ctx) (tm: term) : unit =
   (* print_endline ("checking " ^ term_to_string e tm ^ " is a type"); *)
-  match fst tm with
+  match tm.inner with
   | Hole m ->
     (match Hashtbl.find_opt e.metas m with
     | Some {ty=Some ty; _} -> if not (is_sort ty) then raise_at tm (Error.TypeExpected { not_type = tm; not_type_infer = ty }) else ()
@@ -250,7 +250,7 @@ and check_is_type (e: ctx) (tm: term) : unit =
   | Arrow (arg, ty_arg, ty_ret) ->
     check_is_type e ty_arg;
     let x = gen_fvar_id () in
-    let ty_ret_fvar = replace_bvar ty_ret 0 (Fvar x, snd tm) in
+    let ty_ret_fvar = replace_bvar ty_ret 0 {inner=Fvar x; loc=tm.loc} in
     Hashtbl.add e.lctx x (arg, ty_arg);
     check_is_type e ty_ret_fvar;
     Hashtbl.remove e.lctx x
@@ -258,7 +258,7 @@ and check_is_type (e: ctx) (tm: term) : unit =
     let f_type = try Some (infertype e f) with Error.ElabError {error_type = Error.CannotInferHole; _} -> None in
 
     (match f_type with
-    | Some (Arrow (_, ty_arg, ty_ret), _) -> 
+    | Some {inner=Arrow (_, ty_arg, ty_ret); _} -> 
       (* print_endline ("app checktype: checking that " ^ term_to_string e arg ^ " has type " ^ term_to_string e ty_arg);
       print_endline ("because f is " ^ term_to_string e f ^ " and has type " ^ term_to_string e f_type); *)
       checktype e arg ty_arg;
@@ -271,12 +271,12 @@ and check_is_type (e: ctx) (tm: term) : unit =
     (match Hashtbl.find_opt e.lctx fvar with
     | Some (_, ty) -> 
       let ty = whnf_beta e ty in
-      if not (is_sort ty || match fst ty with | Hole _ -> true | _ -> false) then raise_at tm (Error.TypeExpected { not_type = tm; not_type_infer = ty }) else ()
+      if not (is_sort ty || match ty.inner with | Hole _ -> true | _ -> false) then raise_at tm (Error.TypeExpected { not_type = tm; not_type_infer = ty }) else ()
     | None -> raise_at tm (Error.InternalError "unknown free variable in check_is_type"))
 
 
 let rec contains_fvar (tm: term) : bool =
-  match fst tm with
+  match tm.inner with
   | Fvar _ -> true
   | Fun (_, ty_arg, body) -> contains_fvar ty_arg || contains_fvar body
   | Arrow (_, ty_arg, ty_ret) -> contains_fvar ty_arg || contains_fvar ty_ret
@@ -286,7 +286,7 @@ let rec contains_fvar (tm: term) : bool =
 (* Needs to be trusted for faithfulness of meaning. This returns tm unchanged
 except for replacing metavariables with terms. *)
 let rec replace_metas (e: ctx) (tm: term) : term =
-  match fst tm with
+  match tm.inner with
   | Hole m -> (match Hashtbl.find_opt e.metas m with
     | Some {sol=Some tm_sol; _} -> 
       if contains_fvar tm_sol then raise_at tm (Error.InternalError "hole contains free variables, should have been bound") else
@@ -295,21 +295,21 @@ let rec replace_metas (e: ctx) (tm: term) : term =
   | Fun (arg, ty_arg, body) ->
     let ty_arg_filled = replace_metas e ty_arg in
     let body_filled = replace_metas e body in
-    (Fun (arg, ty_arg_filled, body_filled), snd tm)
+    {inner=Fun (arg, ty_arg_filled, body_filled); loc=tm.loc}
   | Arrow (arg, ty_arg, ty_ret) ->
     let ty_arg_filled = replace_metas e ty_arg in
     let ty_ret_filled = replace_metas e ty_ret in
-    (Arrow (arg, ty_arg_filled, ty_ret_filled), snd tm)
+    {inner=Arrow (arg, ty_arg_filled, ty_ret_filled); loc=tm.loc}
   | App (f, arg) ->
     let f_filled = replace_metas e f in
     let arg_filled = replace_metas e arg in
-    (App (f_filled, arg_filled), snd tm)
+    {inner=App (f_filled, arg_filled); loc=tm.loc}
   | _ -> tm
 
 (* Needs to be trusted for faithfulness of meaning. This returns tm unchanged
 except for replacing holes with metavariable spines. *)
 let rec hole_to_meta (e: ctx) (stack: term list) (tm: term): term = 
-  match fst tm with
+  match tm.inner with
   | Hole m ->
     let types = List.rev stack in
     let meta = { ty = None; vartypes = types; sol = None } in
@@ -319,21 +319,21 @@ let rec hole_to_meta (e: ctx) (stack: term list) (tm: term): term =
       (match level with
       | 0 -> tm
       | n ->
-        fold (App (tm, (Bvar (n - 1), snd tm)), snd tm) (n - 1))
+        fold {inner=App (tm, {inner=Bvar (n - 1); loc=tm.loc}); loc=tm.loc} (n - 1))
     in
-    fold (Hole m, snd tm) (List.length stack)
+    fold {inner=Hole m; loc=tm.loc} (List.length stack)
   | Fun (arg, ty_arg, body) ->
     let ty_arg_meta = hole_to_meta e stack ty_arg in
     let body_meta = hole_to_meta e (ty_arg_meta :: stack) body in
-    (Fun (arg, ty_arg_meta, body_meta), snd tm)
+    {inner=Fun (arg, ty_arg_meta, body_meta); loc=tm.loc}
   | Arrow (arg, ty_arg, ty_ret) ->
     let ty_arg_meta = hole_to_meta e stack ty_arg in
     let ty_ret_meta = hole_to_meta e (ty_arg_meta :: stack) ty_ret in
-    (Arrow (arg, ty_arg_meta, ty_ret_meta), snd tm)
+    {inner=Arrow (arg, ty_arg_meta, ty_ret_meta); loc=tm.loc}
   | App (f, arg) ->
     let f_meta = hole_to_meta e stack f in
     let arg_meta = hole_to_meta e stack arg in
-    (App (f_meta, arg_meta), snd tm)
+    {inner=App (f_meta, arg_meta); loc=tm.loc}
   | _ -> tm
 
 let union (l1: string list) (l2: string list) : string list =
@@ -343,7 +343,7 @@ let union (l1: string list) (l2: string list) : string list =
   Hashtbl.fold (fun key _ acc -> key :: acc) set []
 
 let rec list_axioms_used (e: ctx) (tm: term) : string list =
-  match fst tm with
+  match tm.inner with
   | Name name -> 
     (match Hashtbl.find_opt e.env name with
     | Some {data = Theorem axioms; _} -> axioms

@@ -113,7 +113,7 @@ let pp_loc (r: range) =
 
 
 let pp_local_ctx (e: Types.ctx) : string =
-  Hashtbl.fold (fun k v acc -> acc ^ Pretty.term_to_string e (Term.Fvar k, dummy_range) ^ " : " ^ Pretty.term_to_string e (snd v) ^ "\n") e.lctx ""
+  Hashtbl.fold (fun k v acc -> acc ^ Pretty.term_to_string e {inner=Fvar k; loc=dummy_range} ^ " : " ^ Pretty.term_to_string e (snd v) ^ "\n") e.lctx ""
 
 let pp_exn (e: Types.ctx) (info: elab_error_info) : string =
   let loc_str = match info.context.loc with

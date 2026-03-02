@@ -13,13 +13,13 @@ let sort_to_string = function
   | 1 -> "Type"
   | n -> "Sort " ^ string_of_int n
 
-let is_atomic x = match fst x with
+let is_atomic x = match x.inner with
   | Name _ | Bvar _ | Fvar _ | Hole _ | Sort _ -> true
   | Fun _ | Arrow _ | App _ -> false
 
 (** Flatten application spine. *)
 let rec flatten_app t =
-  match fst t with
+  match t.inner with
   | App (f, a) ->
       let head, args = flatten_app f in
       (head, args @ [a])
@@ -45,12 +45,12 @@ let fvar_to_string (e : Types.ctx) (idx : int) : string =
   | _ -> "f" ^ string_of_int idx
 
 let rec reduce (e: Types.ctx) (tm: term) : term =
-  match fst tm with
+  match tm.inner with
   | App (f, arg) -> 
     let fn = reduce e f in
-    (match fst fn with
+    (match fn.inner with
     | Fun (_, _, body) -> reduce e (replace_bvar body 0 arg)
-    | _ -> (App (fn, arg), snd tm))
+    | _ -> {inner=App (fn, arg); loc=tm.loc})
   (* do we need to recurse into holes? possibly *)
   | Hole m -> (match Hashtbl.find_opt e.metas m with
     | Some {sol=Some tm_sol; _} -> reduce e tm_sol
@@ -58,20 +58,20 @@ let rec reduce (e: Types.ctx) (tm: term) : term =
   | Fun (arg, ty, body) -> 
     let x = gen_fvar_id () in 
     let ty' = reduce e ty in
-    let body' = reduce e (replace_bvar body 0 (Fvar x, snd tm)) in
-    let body'' = bind_bvar body' 0 (Fvar x, snd tm) in
-    (Fun (arg, ty', body''), snd tm)
+    let body' = reduce e (replace_bvar body 0 {inner=Fvar x; loc=tm.loc}) in
+    let body'' = bind_bvar body' 0 {inner=Fvar x; loc=tm.loc} in
+    {inner=Fun (arg, ty', body''); loc=tm.loc}
   | Arrow (arg, ty, ret) ->
     let x = gen_fvar_id () in
     let ty' = reduce e ty in
-    let ret' = reduce e (replace_bvar ret 0 (Fvar x, snd tm)) in
-    let ret'' = bind_bvar ret' 0 (Fvar x, snd tm) in
-    (Arrow (arg, ty', ret''), snd tm)
+    let ret' = reduce e (replace_bvar ret 0 {inner=Fvar x; loc=tm.loc}) in
+    let ret'' = bind_bvar ret' 0 {inner=Fvar x; loc=tm.loc} in
+    {inner=Arrow (arg, ty', ret''); loc=tm.loc}
   | _ -> tm
 
 let rec term_to_string_with (e : Types.ctx) (bctx : string list) (t : term) : string =
   let t = reduce e t in
-  match fst t with
+  match t.inner with
   | Name x -> x
   | Bvar idx -> bvar_to_string bctx idx
   | Fvar idx -> fvar_to_string e idx

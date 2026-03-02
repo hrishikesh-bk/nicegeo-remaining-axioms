@@ -20,20 +20,20 @@ term:
       let params_flat = List.concat params in
       List.fold_right
         (fun (x, ty) acc ->
-           let pat = (Term.Name x, loc) in
-           (Term.Fun (Some x, ty, Term.bind_bvar acc 0 pat), loc))
+           let pat = {Term.inner=Term.Name x; loc} in
+           {Term.inner=Term.Fun (Some x, ty, Term.bind_bvar acc 0 pat); loc})
         params_flat body
     }
   | LPAREN x = IDENT COLON ty = term RPAREN FORALL rettype = term
     {
       let loc = { Term.start = $startpos; Term.end_ = $endpos } in
-      let pat = (Term.Name x, loc) in
-      (Term.Arrow (Some x, ty, Term.bind_bvar rettype 0 pat), loc)
+      let pat = {Term.inner=Term.Name x; loc} in
+      {Term.inner=Term.Arrow (Some x, ty, Term.bind_bvar rettype 0 pat); loc}
     }
   | ty = app_term FORALL rettype = term
     {
       let loc = { Term.start = $startpos; Term.end_ = $endpos } in
-      (Term.Arrow (None, ty, rettype), loc)
+      {Term.inner=Term.Arrow (None, ty, rettype); loc}
     }
 
 app_term:
@@ -41,29 +41,29 @@ app_term:
   | f = app_term arg = atomic_term
     {
       let loc = { Term.start = $startpos; Term.end_ = $endpos } in
-      (Term.App (f, arg), loc)
+      {Term.inner=Term.App (f, arg); loc}
     }
 
 atomic_term:
   | UNDERSCORE
     {
       let loc = { Term.start = $startpos; Term.end_ = $endpos } in
-      (Term.Hole (Term.gen_hole_id ()), loc)
+      {Term.inner=Term.Hole (Term.gen_hole_id ()); loc}
     }
   | x = IDENT
     {
       let loc = { Term.start = $startpos; Term.end_ = $endpos } in
-      (Term.Name x, loc)
+      {Term.inner=Term.Name x; loc}
     }
   | TYPE
     {
       let loc = { Term.start = $startpos; Term.end_ = $endpos } in
-      (Term.Sort 1, loc)
+      {Term.inner=Term.Sort 1; loc}
     }
   | PROP
     {
       let loc = { Term.start = $startpos; Term.end_ = $endpos } in
-      (Term.Sort 0, loc)
+      {Term.inner=Term.Sort 0; loc}
     }
   | LPAREN t = term RPAREN { t }
 
@@ -76,5 +76,5 @@ param_group:
   | x = IDENT
     {
       let loc = { Term.start = $startpos; Term.end_ = $endpos } in
-      [(x, (Term.Hole (Term.gen_hole_id ()), loc))]
+      [(x, {Term.inner=Term.Hole (Term.gen_hole_id ()); loc})]
     }

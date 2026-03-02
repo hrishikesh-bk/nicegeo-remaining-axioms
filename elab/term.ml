@@ -7,7 +7,7 @@ let dummy_pos : Lexing.position = {
 }
 let dummy_range : range = { start = dummy_pos; end_ = dummy_pos }
 
-type term = term' * range
+type term = {inner: term'; loc: range}
 and term' =
   | Name of string (* a name in the code (refers to a const or the nearest bound variable of the same name during parsing) *)
   | Bvar of int (* de Bruijn index *)
@@ -28,42 +28,42 @@ let gen_hole_id () =
 
 let gen_fvar_id = gen_hole_id
 
-let rec bind_bvar ((tm', loc): term) (bvar_idx: int) (pat: term) : term =
+let rec bind_bvar ({inner=tm'; loc}: term) (bvar_idx: int) (pat: term) : term =
   match tm' with
-  | Fun (x, (ty_arg, l1), (body, l2)) ->
-    let ty_arg_rebound = bind_bvar (ty_arg, l1) bvar_idx pat in
-    let body_rebound = bind_bvar (body, l2) (bvar_idx + 1) pat in
-    (Fun (x, ty_arg_rebound, body_rebound), loc)
-  | Arrow (x, (ty_arg, l1), (ty_ret, l2)) ->
-    let ty_arg_rebound = bind_bvar (ty_arg, l1) bvar_idx pat in
-    let ty_ret_rebound = bind_bvar (ty_ret, l2) (bvar_idx + 1) pat in
-    (Arrow (x, ty_arg_rebound, ty_ret_rebound), loc)
-  | App ((t1, l1), (t2, l2)) ->
-    let t1_rebound = bind_bvar (t1, l1) bvar_idx pat in
-    let t2_rebound = bind_bvar (t2, l2) bvar_idx pat in
-    (App (t1_rebound, t2_rebound), loc)
-  | Name _ | Fvar _ -> if tm' = (fst pat) then (Bvar bvar_idx, loc) else (tm', loc)
-  | _ -> (tm', loc)
+  | Fun (x, ty_arg, body) ->
+    let ty_arg_rebound = bind_bvar ty_arg bvar_idx pat in
+    let body_rebound = bind_bvar body (bvar_idx + 1) pat in
+    {inner=Fun (x, ty_arg_rebound, body_rebound); loc}
+  | Arrow (x, ty_arg, ty_ret) ->
+    let ty_arg_rebound = bind_bvar ty_arg bvar_idx pat in
+    let ty_ret_rebound = bind_bvar ty_ret (bvar_idx + 1) pat in
+    {inner=Arrow (x, ty_arg_rebound, ty_ret_rebound); loc}
+  | App (t1, t2) ->
+    let t1_rebound = bind_bvar t1 bvar_idx pat in
+    let t2_rebound = bind_bvar t2 bvar_idx pat in
+    {inner=App (t1_rebound, t2_rebound); loc}
+  | Name _ | Fvar _ -> if tm' = pat.inner then {inner=Bvar bvar_idx; loc} else {inner=tm'; loc}
+  | _ -> {inner=tm'; loc}
 
 
-let rec replace_bvar ((tm', loc): term) (bvar_idx: int) (replacement: term) : term =
+let rec replace_bvar ({inner=tm'; loc}: term) (bvar_idx: int) (replacement: term) : term =
   match tm' with
-  | Fun (x, (ty, l1), (body, l2)) ->
-    let ty_replaced = replace_bvar (ty, l1) bvar_idx replacement in
-    let body_replaced = replace_bvar (body, l2) (bvar_idx + 1) replacement in
-    (Fun (x, ty_replaced, body_replaced), loc)
-  | Arrow (x, (ty, l1), (ret, l2)) ->
-    let ty_replaced = replace_bvar (ty, l1) bvar_idx replacement in
-    let ret_replaced = replace_bvar (ret, l2) (bvar_idx + 1) replacement in
-    (Arrow (x, ty_replaced, ret_replaced), loc)
-  | App ((f, l1), (arg, l2)) ->
-    let f_replaced = replace_bvar (f, l1) bvar_idx replacement in
-    let arg_replaced = replace_bvar (arg, l2) bvar_idx replacement in
-    (App (f_replaced, arg_replaced), loc)
-  | Bvar idx -> if idx = bvar_idx then (fst replacement, loc) else (tm', loc)
-  | _ -> (tm', loc)
+  | Fun (x, ty, body) ->
+    let ty_replaced = replace_bvar ty bvar_idx replacement in
+    let body_replaced = replace_bvar body (bvar_idx + 1) replacement in
+    {inner=Fun (x, ty_replaced, body_replaced); loc}
+  | Arrow (x, ty, ret) ->
+    let ty_replaced = replace_bvar ty bvar_idx replacement in
+    let ret_replaced = replace_bvar ret (bvar_idx + 1) replacement in
+    {inner=Arrow (x, ty_replaced, ret_replaced); loc}
+  | App (f, arg) ->
+    let f_replaced = replace_bvar f bvar_idx replacement in
+    let arg_replaced = replace_bvar arg bvar_idx replacement in
+    {inner=App (f_replaced, arg_replaced); loc}
+  | Bvar idx -> if idx = bvar_idx then {inner=replacement.inner; loc} else {inner=tm'; loc}
+  | _ -> {inner=tm'; loc}
 
 let is_sort (t: term) : bool =
-  match fst t with
+  match t.inner with
   | Sort _ -> true
   | _ -> false
