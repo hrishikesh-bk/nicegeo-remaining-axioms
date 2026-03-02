@@ -18,9 +18,9 @@ type enventry = {
 }
 
 type ctx = {
-  env : (string, enventry) Hashtbl.t; (* elaboration-level environment *)
+  env : (string, enventry) Hashtbl.t; (* elaboration-level environment that maps from defined names to what those names refer to *)
   kenv : KTerm.environment; (* kernel-level environment (should be kept in sync with env) *)
-
-  metas : (int, metavar) Hashtbl.t; (* mapping from hole IDs to values *)
+  
+  metas : (int, metavar) Hashtbl.t; (** Mapping from hole IDs to values to fill in for that hole (i.e. values that we solved for during elaboration) *)
   lctx : (int, string option * term) Hashtbl.t; (* local context id to name and type. *)
 }

@@ -9,7 +9,11 @@ exception InferHole
 type normterm =
   | Fun of string option * term * term
   | Arrow of string option * term * term
+  (* (variable, args) where variable is a variable of some kind (either a name, a bound variable, or a free variable), and that variable
+    is applied to all arguments in `args` from first to last (so this represents the expressions `variable arg0 arg1 ... argN`) *)
   | VarSpine of term * term list
+  (* (hole, args) that represents the expression `hole arg0 arg1 ... argN` where `hole` is a hole that we need to solve for
+    and args are arbitrary terms *)
   | MetaSpine of term * term list
   | Sort of int
 
@@ -93,6 +97,8 @@ let rec last = function
 | [x] -> x
 | _ :: xs -> last xs
 
+(** Find the value for the hole `m` given that that hole, when applied to all the arguments in `args`, is equal to the term `tm`.
+  Stores the computed solution for that hole in the `e.metas` hash table *)
 let rec pattern_match_meta (e: ctx) (m: int) (args: term list) (tm: term) : unit =
   (* print_endline ("pattern matching meta " ^ string_of_int m ^ " with args " ^ String.concat " " (List.map (term_to_string e) args) ^ " against term " ^ term_to_string e tm); *)
   (* uhh get rid of the last matching args? *)
@@ -119,6 +125,7 @@ let rec pattern_match_meta (e: ctx) (m: int) (args: term list) (tm: term) : unit
 
   Hashtbl.replace e.metas m { (Hashtbl.find e.metas m) with sol = Some (fold tm (List.rev args) (List.rev (Hashtbl.find e.metas m).vartypes)) }
 
+(** Takes in two terms `t1` and `t2` (both defined in the same context `e`) and solves for holes assuming that `t1 = t2` *)
 let rec unify (e: ctx) (t1: term) (t2: term) : unit =
   let t1 = whnf_beta e t1 in
   let t2 = whnf_beta e t2 in
@@ -131,6 +138,8 @@ let rec unify (e: ctx) (t1: term) (t2: term) : unit =
     (* could theoretically do some freaky stuff here *)
     if List.length args1 != List.length args2 then print_endline "tried to unify different length meta spines" else
     if m1 = m2 then () else
+    (* Have the hole with the smaller ID point to the larger ID to ensure that there aren't any holes that refer to each other
+    in a cycle? *)
     let (m1, m2) = if m1 < m2 then (m1, m2) else (m2, m1) in
     Hashtbl.replace e.metas m1 { (Hashtbl.find e.metas m1) with sol = Some (Hole m2) };
     List.iter2 (fun arg1 arg2 -> unify e arg1 arg2) args1 args2
@@ -156,8 +165,8 @@ let rec unify (e: ctx) (t1: term) (t2: term) : unit =
   | Sort n1, Sort n2 when n1 = n2 -> ()
   | _ -> failwith ("failed to unify non-matching terms " ^ term_to_string e t1 ^ " and " ^ term_to_string e t2)
 
-(* checks that tm has expected type ty, trying to fill in metas? *)
-(* if it fails it throws an exception. todo: use actual exceptions *)
+(** checks that tm has expected type ty, trying to fill in metavariables (holes).
+  If it fails it throws an exception. todo: use actual exceptions *)
 let rec checktype (e: ctx) (tm: term) (ty: term) : unit =
   (* print_endline ("checking " ^ term_to_string e tm ^ " has type " ^ term_to_string e ty); *)
   match tm with 
@@ -176,6 +185,7 @@ let rec checktype (e: ctx) (tm: term) (ty: term) : unit =
     unify e ty (infertype e tm)
   | Bvar _ -> failwith "unexpected bound variable in checktype"
   
+(** Infer the type of the term `tm` in the context `e`, raising the exception InferHole if any unfilled holes are found *)
 and infertype (e: ctx) (tm: term) : term =
   (* print_endline ("inferring type of " ^ term_to_string e tm); *)
   let res = match tm with
@@ -265,6 +275,7 @@ and check_is_type (e: ctx) (tm: term) : unit =
     | None -> failwith "unknown free variable in check_is_type")
 
 
+(** Return true if the given term contains a free variable *)
 let rec contains_fvar (tm: term) : bool =
   match tm with
   | Fvar _ -> true
@@ -273,8 +284,8 @@ let rec contains_fvar (tm: term) : bool =
   | App (f, arg) -> contains_fvar f || contains_fvar arg
   | _ -> false
 
-(* Needs to be trusted for faithfulness of meaning. This returns tm unchanged
-except for replacing metavariables with terms. *)
+(** Needs to be trusted for faithfulness of meaning. This returns tm unchanged
+except for replacing metavariables (holes) with terms with the solutions that we solved for for each hole. *)
 let rec replace_metas (e: ctx) (tm: term) : term =
   match tm with
   | Hole m -> (match Hashtbl.find_opt e.metas m with
