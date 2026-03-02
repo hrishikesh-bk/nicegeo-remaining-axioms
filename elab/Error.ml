@@ -1,13 +1,10 @@
-(* Error.ml ; will hav eerror context, comment label, exception types, raise fields, and pretty print fields*)
 open Term
+module KTerm = System_e_kernel.Term
 module KExceptions = System_e_kernel.Exceptions
 
-(*comment label*)
-
-(*error context*)
 type error_context = { 
-  loc: range option; (*loc - where the error is happening*)
-  decl_name: string option; (*decl_name - name of the declaration that caused the error*)
+  loc: range option; (* loc - where the error is happening *)
+  decl_name: string option; (* decl_name - name of the declaration that caused the error *)
 }
 
 type parse_error_info = {
@@ -58,25 +55,62 @@ type elab_error_info = {
 
 exception ElabError of elab_error_info
 
+(* kernel error handling *)
+
+(*
+ * Convert a local context to a string
+ *)
+let context_to_string (ctx : KTerm.localcontext) : string =
+  Hashtbl.fold (fun k v acc -> acc ^ k ^ " : " ^ Kernel_pretty.term_to_string_pretty v ^ "\n") ctx ""
+
+(*
+ * Convert a type error to a string for printing
+ *)
+let ktype_err_to_string (info : KExceptions.type_error_info) : string =
+  match info.err_kind with
+  | UnknownConstError name -> "unknown constant: " ^ name
+  | UnknownFreeVarError name -> "unknown free variable: " ^ name
+  | BoundVarScopeError idx ->
+     "bound variable index out of scope: " ^ string_of_int idx
+  | AppArgTypeError (f, a, f_type, expected_a_type, inferred_a_type) ->
+      Printf.sprintf 
+        "Function called with invalid argument type.\n\
+         Local Context:\n%s\n\
+         Term: %s\n\
+         Func: %s\n\
+         Arg: %s\n\n\
+         Func Type: %s\n\
+         Expected Arg Type: %s\n\
+         Inferred Arg Type: %s\n"
+        (context_to_string info.ctx)
+        (Kernel_pretty.term_to_string_pretty info.trm)
+        (Kernel_pretty.term_to_string_pretty f)
+        (Kernel_pretty.term_to_string_pretty a)
+        (Kernel_pretty.term_to_string_pretty f_type)
+        (Kernel_pretty.term_to_string_pretty expected_a_type)
+        (Kernel_pretty.term_to_string_pretty inferred_a_type)
+  | AppNonFuncError ->
+     "Tried to apply non-function to an argument"
+  | LamDomainError ->
+     "Invalid domain type for lambda"
+  | ForallSortError (domainTypeType, returnTypeType) ->
+      Printf.sprintf 
+        "Domain and return types of a Forall must be sorts.\n\
+         Local Context:\n%s\n\
+         Term: %s\n\
+         Domain Type Sort: %s\n\
+         Return Type Sort: %s\n\n"
+        (context_to_string info.ctx)
+        (Kernel_pretty.term_to_string_pretty info.trm)
+        (Kernel_pretty.term_to_string_pretty domainTypeType)
+        (Kernel_pretty.term_to_string_pretty returnTypeType)
+
 let pp_loc (r: range) =
   if r.start.pos_lnum = r.end_.pos_lnum then
     Printf.sprintf "%s:%d:%d-%d" r.start.pos_fname r.start.pos_lnum (r.start.pos_cnum - r.start.pos_bol+1) (r.end_.pos_cnum - r.end_.pos_bol+1)
   else
     Printf.sprintf "%s:%d:%d to %d:%d" r.start.pos_fname r.start.pos_lnum (r.start.pos_cnum - r.start.pos_bol+1) r.end_.pos_lnum (r.end_.pos_cnum - r.end_.pos_bol+1)
 
-let pp_kv k = function
-  | None -> ""
-  | Some v -> Printf.sprintf "%s: %s\n" k v
-
-let pp_locals locals =
-  if locals = [] then ""
-  else
-    let lines =
-      locals
-      |> List.map (fun (x, ty) -> Printf.sprintf "  %s : %s" x ty)
-      |> String.concat "\n"
-    in
-    "locals:\n" ^ lines ^ "\n"
 
 let pp_exn (e: Types.ctx) (info: elab_error_info) : string =
   let loc_str = match info.context.loc with
@@ -97,7 +131,7 @@ let pp_exn (e: Types.ctx) (info: elab_error_info) : string =
   | CannotInferHole ->
       Printf.sprintf "Cannot infer type of hole in %s at %s" decl_str loc_str
   | KernelError { kernel_exn } ->
-      Printf.sprintf "Kernel error in %s at %s: %s" decl_str loc_str (KExceptions.type_err_to_string kernel_exn)
+      Printf.sprintf "Kernel error in %s at %s: %s" decl_str loc_str (ktype_err_to_string kernel_exn)
   | UnknownName { name } ->
       Printf.sprintf "Unknown name '%s' in %s at %s" name decl_str loc_str
   | InternalError msg ->

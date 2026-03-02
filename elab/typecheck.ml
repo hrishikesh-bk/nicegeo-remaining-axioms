@@ -5,8 +5,6 @@ open Types
 module KInfer = System_e_kernel.Infer
 module KExceptions = System_e_kernel.Exceptions
 
-exception InferHole
-
 let raise_at (tm: term) (e: Error.error_type) : 'a =
   let loc = Some (snd tm) in
   raise (Error.ElabError { context = { loc; decl_name = None }; error_type = e })
@@ -178,7 +176,7 @@ let rec checktype (e: ctx) (tm: term) (ty: term) : unit =
     (try (let tm_type = infertype e tm in
       try unify e ty tm_type
       with Failure _ -> raise_at tm (Error.TypeMismatch { term = tm; inferred_type = tm_type; expected_type = ty }))
-    with InferHole ->
+    with Error.ElabError {error_type = Error.CannotInferHole; _} ->
       let argtype = infertype e arg in
       checktype e f (Arrow (None, argtype, ty), snd ty))
   | Name _ | Fun _ | Arrow _ | Sort _ | Fvar _ ->
@@ -190,7 +188,7 @@ let rec checktype (e: ctx) (tm: term) (ty: term) : unit =
 and infertype (e: ctx) (tm: term) : term =
   (* print_endline ("inferring type of " ^ term_to_string e tm); *)
   let res = match fst tm with
-  | Hole _ -> raise InferHole
+  | Hole _ -> raise_at tm (Error.CannotInferHole)
   | Name name ->
     (match Hashtbl.find_opt e.env name with
       | Some entry -> entry.ty
@@ -257,7 +255,7 @@ and check_is_type (e: ctx) (tm: term) : unit =
     check_is_type e ty_ret_fvar;
     Hashtbl.remove e.lctx x
   | App (f, arg) ->
-    let f_type = try Some (infertype e f) with InferHole -> None in
+    let f_type = try Some (infertype e f) with Error.ElabError {error_type = Error.CannotInferHole; _} -> None in
 
     (match f_type with
     | Some (Arrow (_, ty_arg, ty_ret), _) -> 
