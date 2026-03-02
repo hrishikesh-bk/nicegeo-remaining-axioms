@@ -1,3 +1,4 @@
 (library
- (name system_e_kernel))
+ (name system_e_kernel)
+ (public_name system-e-kernel.system_e_kernel))
 
