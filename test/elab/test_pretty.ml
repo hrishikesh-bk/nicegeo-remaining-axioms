@@ -53,13 +53,11 @@ let () =
 
 (* Example 6: Declaration pretty-printing *)
 let () =
-  let d = Axiom ("Point", l, {ETerm.inner=Sort 1; loc=l}) in
+  let d = {name="Point"; name_loc=l; ty={ETerm.inner=Sort 1; loc=l}; kind=Axiom} in
   Printf.printf "Axiom Point : Type  =>  %s\n" (decl_to_string e d);
   let d2 =
-    Theorem
-      ( "id", l,
-        Testterm.(narrow "A" (sort 1) (narrow "x" (bvar 0) (bvar 1))),
-         Testterm.(ufun (sort 1) (ufun (bvar 0) (bvar 0))))
+    {name="id"; name_loc=l; ty=Testterm.(narrow "A" (sort 1) (narrow "x" (bvar 0) (bvar 1))); 
+    kind=Theorem Testterm.(ufun (sort 1) (ufun (bvar 0) (bvar 0)))}
   in
   Printf.printf "Theorem id : (A : Type) -> (x : A) -> A := ...  => \n%s\n\n"
     (decl_to_string e d2)

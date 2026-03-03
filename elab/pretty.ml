@@ -123,7 +123,7 @@ let rec term_to_string_with (e : Types.ctx) (bctx : string list) (t : term) : st
 
 let term_to_string (e : Types.ctx) (t : term) : string = term_to_string_with e [] t
 
-let decl_to_string (e : Types.ctx) = function
-  | Axiom (name, _,  ty) -> "Axiom " ^ name ^ " : " ^ term_to_string e ty
-  | Theorem (name, _, ty, proof) ->
-      "Theorem " ^ name ^ " : " ^ term_to_string e ty ^ " := " ^ term_to_string e proof
+let decl_to_string (e : Types.ctx) (d: declaration) = match d.kind with
+  | Axiom -> "Axiom " ^ d.name ^ " : " ^ term_to_string e d.ty
+  | Theorem proof ->
+      "Theorem " ^ d.name ^ " : " ^ term_to_string e d.ty ^ " := " ^ term_to_string e proof

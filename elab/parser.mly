@@ -12,9 +12,9 @@ single_term:
   | t = term EOF { t }
 
 declaration:
-  | AXIOM name = IDENT COLON ty = term { Decl.Axiom (name, { Term.start = $startpos(name); Term.end_ = $endpos(name) }, ty) }
+  | AXIOM name = IDENT COLON ty = term { Decl.{name=name; name_loc={ Term.start = $startpos(name); Term.end_ = $endpos(name) }; ty; kind=Axiom} }
   | THEOREM name = IDENT COLON ty = term DEFEQ proof = term
-    { Decl.Theorem (name, { Term.start = $startpos(name); Term.end_ = $endpos(name) }, ty, proof) }
+    { Decl.{name=name; name_loc={ Term.start = $startpos(name); Term.end_ = $endpos(name) }; ty; kind=Theorem proof} }
 
 term:
   | t = app_term { t }

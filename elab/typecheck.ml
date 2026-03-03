@@ -356,11 +356,11 @@ let rec list_axioms_used (e: ctx) (tm: term) : string list =
 
 (* Needs to be trusted for faithfulness of meaning *)
 let process_decl (e: ctx) (d: declaration) : unit =
-  try match d with
-  | Theorem (name, nameloc, ty, proof) ->
-    if Hashtbl.mem e.env name then raise (Error.ElabError { context = { loc = Some nameloc; decl_name = Some name }; error_type = Error.AlreadyDefined name }) else
+  try match d.kind with
+  | Theorem proof ->
+    if Hashtbl.mem e.env d.name then raise (Error.ElabError { context = { loc = Some d.name_loc; decl_name = Some d.name }; error_type = Error.AlreadyDefined d.name }) else
     (* hole_to_meta only replaces holes explicitly typed in by the user as "_" with metavariable spines *)
-    let ty_meta = hole_to_meta e [] ty in
+    let ty_meta = hole_to_meta e [] d.ty in
     check_is_type e ty_meta;
     (* replace_metas only fills in metavariables *)
     let ty_filled = replace_metas e ty_meta in
@@ -378,23 +378,23 @@ let process_decl (e: ctx) (d: declaration) : unit =
       let isValidProof = KInfer.isDefEq e.kenv (Hashtbl.create 0) inferredType ty_k in
 
       if isValidProof then
-        (Hashtbl.add e.env name {name = name; ty = ty_filled; data = Theorem (list_axioms_used e proof_filled)};
-        Hashtbl.add e.kenv name ty_k)
+        (Hashtbl.add e.env d.name {name = d.name; ty = ty_filled; data = Theorem (list_axioms_used e proof_filled)};
+        Hashtbl.add e.kenv d.name ty_k)
       else
-        raise (Error.ElabError { context = { loc = Some nameloc; decl_name = Some name }; error_type = Error.InternalError ("kernel did not accept proof\n") })
+        raise (Error.ElabError { context = { loc = Some d.name_loc; decl_name = Some d.name }; error_type = Error.InternalError ("kernel did not accept proof\n") })
     with KExceptions.TypeError msg ->
-      raise (Error.ElabError { context = { loc = Some nameloc; decl_name = Some name }; error_type = Error.KernelError { kernel_exn = msg } }))
-  | Axiom (name, nameloc, ty) ->
-    if Hashtbl.mem e.env name then raise (Error.ElabError { context = { loc = Some nameloc; decl_name = Some name }; error_type = Error.AlreadyDefined name }) else
+      raise (Error.ElabError { context = { loc = Some d.name_loc; decl_name = Some d.name }; error_type = Error.KernelError { kernel_exn = msg } }))
+  | Axiom -> 
+    if Hashtbl.mem e.env d.name then raise (Error.ElabError { context = { loc = Some d.name_loc; decl_name = Some d.name }; error_type = Error.AlreadyDefined d.name }) else
     (* hole_to_meta only replaces holes explicitly typed in by the user as "_" with metavariable spines *)
-    let ty_meta = hole_to_meta e [] ty in
+    let ty_meta = hole_to_meta e [] d.ty in
     check_is_type e ty_meta;
     (* replace_metas only fills in metavariables *)
     let ty_filled = replace_metas e ty_meta in
     Hashtbl.clear e.metas;
     (* conv_to_kterm does a straightforward variant-to-variant conversion *)
     let ty_k = conv_to_kterm ty_filled in
-    Hashtbl.add e.env name {name = name; ty = ty_filled; data = Axiom};
-    Hashtbl.add e.kenv name ty_k 
+    Hashtbl.add e.env d.name {name = d.name; ty = ty_filled; data = Axiom};
+    Hashtbl.add e.kenv d.name ty_k 
   with Error.ElabError x ->
-    raise (Error.ElabError { x with context = { x.context with decl_name = Some (decl_name d) } })
+    raise (Error.ElabError { x with context = { x.context with decl_name = Some d.name } })
