@@ -7,8 +7,8 @@ let dummy_pos : Lexing.position = {
 }
 let dummy_range : range = { start = dummy_pos; end_ = dummy_pos }
 
-type term = {inner: term'; loc: range}
-and term' =
+type term = {inner: termkind; loc: range}
+and termkind =
   | Name of string (* a name in the code (refers to a const or the nearest bound variable of the same name during parsing) *)
   | Bvar of int (* de Bruijn index *)
   | Fvar of int (* unique index *)
