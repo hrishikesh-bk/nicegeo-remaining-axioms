@@ -1,8 +1,8 @@
 (** Pretty-printing for elaborator terms.
 
-    Elaborator terms now contain [Bvar] and [Fvar]s and only optional binder
-    names. To print readable names we consult the elaborator context stored in
-    [Types.ctx] (notably [lctx] and [metas]). *)
+    Elaborator terms now contain [Bvar] and [Fvar]s and only optional
+    binder names. To print readable names we consult the elaborator context
+    stored in [Types.ctx] (notably [lctx] and [metas]). *)
 
 open Term
 open Decl
@@ -22,10 +22,12 @@ let rec flatten_app t =
   match t with
   | App (f, a) ->
       let head, args = flatten_app f in
-      (head, args @ [ a ])
+      (head, args @ [a])
   | other -> (other, [])
 
-let opt_name_to_string = function Some x -> x | None -> "_"
+let opt_name_to_string = function
+  | Some x -> x
+  | None -> "_"
 
 let bvar_to_string (bctx : string list) (idx : int) : string =
   if idx < List.length bctx then List.nth bctx idx else "_" ^ string_of_int idx
@@ -35,8 +37,7 @@ let fvar_to_string (e : Types.ctx) (idx : int) : string =
   | Some (Some name, _) -> name
   | _ -> "f" ^ string_of_int idx
 
-let rec term_to_string_with (e : Types.ctx) (bctx : string list) (t : term) :
-    string =
+let rec term_to_string_with (e : Types.ctx) (bctx : string list) (t : term) : string =
   match t with
   | Name x -> x
   | Bvar idx -> bvar_to_string bctx idx
@@ -45,7 +46,8 @@ let rec term_to_string_with (e : Types.ctx) (bctx : string list) (t : term) :
       match Hashtbl.find_opt e.metas idx with
       | Some { sol = Some tm_sol; _ } ->
           "?m" ^ string_of_int idx ^ " := " ^ term_to_string_with e bctx tm_sol
-      | _ -> "?m" ^ string_of_int idx)
+      | _ -> "?m" ^ string_of_int idx
+    )
   | Sort n -> sort_to_string n
   | Fun (x, ty, body) ->
       let x_s = opt_name_to_string x in
@@ -56,9 +58,8 @@ let rec term_to_string_with (e : Types.ctx) (bctx : string list) (t : term) :
       let x_s = opt_name_to_string x in
       let ty_s = term_to_string_with e bctx ty in
       let ret_s = term_to_string_with e (x_s :: bctx) ret in
-      if x = None then ty_s ^ " -> " ^ ret_s
-      else "(" ^ x_s ^ " : " ^ ty_s ^ ") -> " ^ ret_s
-  | App _ -> (
+      if x = None then ty_s ^ " -> " ^ ret_s else "(" ^ x_s ^ " : " ^ ty_s ^ ") -> " ^ ret_s
+  | App _ ->
       let head, args = flatten_app t in
       let head_s = term_to_string_with e bctx head in
       let args_s =
@@ -68,15 +69,11 @@ let rec term_to_string_with (e : Types.ctx) (bctx : string list) (t : term) :
             if is_atomic a then s else "(" ^ s ^ ")")
           args
       in
-      match args_s with
-      | [] -> head_s
-      | _ -> head_s ^ " " ^ String.concat " " args_s)
+      (match args_s with [] -> head_s | _ -> head_s ^ " " ^ String.concat " " args_s)
 
-let term_to_string (e : Types.ctx) (t : term) : string =
-  term_to_string_with e [] t
+let term_to_string (e : Types.ctx) (t : term) : string = term_to_string_with e [] t
 
 let decl_to_string (e : Types.ctx) = function
   | Axiom (name, ty) -> "Axiom " ^ name ^ " : " ^ term_to_string e ty
   | Theorem (name, ty, proof) ->
-      "Theorem " ^ name ^ " : " ^ term_to_string e ty ^ " := "
-      ^ term_to_string e proof
+      "Theorem " ^ name ^ " : " ^ term_to_string e ty ^ " := " ^ term_to_string e proof

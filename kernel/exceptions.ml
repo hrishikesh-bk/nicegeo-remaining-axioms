@@ -25,12 +25,13 @@ type type_error_kind =
 (*
  * Type error information
  *)
-type type_error_info = {
-  env : environment;
-  ctx : localcontext;
-  trm : term;
-  err_kind : type_error_kind;
-}
+type type_error_info =
+  {
+    env : environment;
+    ctx : localcontext;
+    trm : term;
+    err_kind : type_error_kind
+  }
 
 (* Exceptions that the kernel may raise, using the above information *)
 exception TypeError of type_error_info
@@ -54,8 +55,7 @@ let rec term_to_string (t : term) : string =
   | Sort level -> "Sort " ^ string_of_int level
   | Fvar name -> name
   | Bvar idx -> "Bvar " ^ string_of_int idx
-  | Lam (dom, body) ->
-      "fun " ^ term_to_string dom ^ " => (" ^ term_to_string body ^ ")"
+  | Lam (dom, body) -> "fun " ^ term_to_string dom ^ " => (" ^ term_to_string body ^ ")"
   | Forall (dom, body) -> term_to_string dom ^ " -> " ^ term_to_string body
   | App (f, a) -> "(" ^ term_to_string f ^ " " ^ term_to_string a ^ ")"
 
@@ -73,12 +73,11 @@ let type_err_to_string (info : type_error_info) : string =
   | UnknownConstError name -> "unknown constant: " ^ name
   | UnknownFreeVarError name -> "unknown free variable: " ^ name
   | BoundVarScopeError idx ->
-      "bound variable index out of scope: " ^ string_of_int idx
+     "bound variable index out of scope: " ^ string_of_int idx
   | AppArgTypeError (f, a, f_type, expected_a_type, inferred_a_type) ->
-      Printf.sprintf
+      Printf.sprintf 
         "Function called with invalid argument type.\n\
-         Local Context:\n\
-         %s\n\
+         Local Context:\n%s\n\
          Term: %s\n\
          Func: %s\n\
          Arg: %s\n\n\
@@ -86,17 +85,20 @@ let type_err_to_string (info : type_error_info) : string =
          Expected Arg Type: %s\n\
          Inferred Arg Type: %s\n"
         (context_to_string info.ctx)
-        (term_to_string info.trm) (term_to_string f) (term_to_string a)
+        (term_to_string info.trm)
+        (term_to_string f)
+        (term_to_string a)
         (term_to_string f_type)
         (term_to_string expected_a_type)
         (term_to_string inferred_a_type)
-  | AppNonFuncError -> "Tried to apply non-function to an argument"
-  | LamDomainError -> "Invalid domain type for lambda"
+  | AppNonFuncError ->
+     "Tried to apply non-function to an argument"
+  | LamDomainError ->
+     "Invalid domain type for lambda"
   | ForallSortError (domainTypeType, returnTypeType) ->
-      Printf.sprintf
+      Printf.sprintf 
         "Domain and return types of a Forall must be sorts.\n\
-         Local Context:\n\
-         %s\n\
+         Local Context:\n%s\n\
          Term: %s\n\
          Domain Type Sort: %s\n\
          Return Type Sort: %s\n\n"
@@ -104,3 +106,4 @@ let type_err_to_string (info : type_error_info) : string =
         (term_to_string info.trm)
         (term_to_string domainTypeType)
         (term_to_string returnTypeType)
+
