@@ -238,7 +238,7 @@ let test_infer_function_application () =
   Alcotest.match_raises "applying non-function should raise"
     (fun exn ->
       match exn with
-      | TypeError { err_kind = AppNonFuncError; _ } -> true
+      | TypeError { err_kind = AppNonFuncError _; _ } -> true
       | _ -> false)
     (fun () -> ignore (try_infer env local_ctx application_with_non_function));
 

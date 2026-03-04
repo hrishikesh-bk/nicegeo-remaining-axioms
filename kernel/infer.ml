@@ -140,7 +140,7 @@ let rec inferType (env : environment) (localCtx : localcontext) (t : term) : ter
           raise (TypeError {env; ctx = localCtx; trm = t; err_kind})
       | _ ->
          (* Error: Tried to apply non-function to an argument *)
-         let err_kind = AppNonFuncError in
+         let err_kind = AppNonFuncError func_type in
          raise (TypeError {env; ctx = localCtx; trm = t; err_kind})
   )
   | Lam (domainType, body) -> (
@@ -148,7 +148,7 @@ let rec inferType (env : environment) (localCtx : localcontext) (t : term) : ter
       let domainTypeType = inferType env localCtx domainType in
       if not (isSort env domainTypeType) then
         (* Invalid domain type for lambda *)
-        let err_kind = LamDomainError in
+        let err_kind = LamDomainError domainTypeType in
         raise (TypeError {env; ctx = localCtx; trm = t; err_kind})
       else
       (* add mapping new_fvar_name -> domainType to localCtx in recursive call *)
