@@ -1,5 +1,5 @@
 open Printexc
-open E_elab
+open Elab
 
 let () =
   record_backtrace true;
@@ -8,6 +8,7 @@ let () =
     Printf.eprintf "Usage: %s <filename>\n" Sys.argv.(0);
     exit 1
   end;
+
   let filename = Sys.argv.(1) in
   let env = Elab.create_with_env () in
   let tone = Nice_messages.tone_from_env () in
