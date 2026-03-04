@@ -11,7 +11,7 @@ let () =
   let filename = Sys.argv.(1) in
   let env = try
     Elab.create_with_env ();
-  with Error.ElabError info as exn ->
+  with Error.ElabError info ->
     print_endline ("Internal error while processing env.txt: " ^ Error.pp_exn {
       env=Hashtbl.create 0;
       kenv=Hashtbl.create 0;
