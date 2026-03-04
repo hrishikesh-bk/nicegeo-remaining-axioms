@@ -1,3 +1,26 @@
+(**
+  The general strategy for filling in user-specified holes essentially boils down to creating unique
+  variables each time we encounter a hole, generating equations that a correctly typed program would have
+  to satisfy, and then use that to find solutions (i.e. specific terms to place at that hole) for each variable.
+
+  In order to simplify the unification algorithm, we require that solutions to holes will always be a closed term,
+  meaning that all variables used in that term are also introduced inside that term (e.g. `fun c => fun d => c d` is a
+  closed term but `fun d => c d` isn't since the latter uses `c` without defining it), although references to previously
+  defined theorems/axioms are still allowed. The reasoning for that is that as we traverse the term that we're type
+  checking, the specific values of each bound variable and each free variable might change (since a given Bvar index
+  points to different definitions depending on how many surrounding function definitions there are, and free variables
+  get introduced/removed as necessary when type checking functions). If we require that holes are always closed terms
+  though, interpreting a closed term doesn't require looking at any external Bvars or Fvars, so we don't have to
+  remember what Bvar/Fvar mapping to use for each hole.
+
+  The way we ensure that holes only ever need to be closed terms is that we automatically convert holes into functions
+  that get immediately called with all of the bound variables in the expression at that point (e.g. if a hole appears in
+  an expression at a point where `x: A` and `y: B` have already been defined then we'd convert the term to `?H x y` where `?H`
+  is the hole we want to solve for, at which point we'd expect that `?H` to be a function `A -> B -> T` for some type `T`).
+  
+
+  See lecture 3 of https://github.com/andrejbauer/faux-type-theory for more information on the algorithm
+*)
 open Decl
 open Term
 open Convert
