@@ -129,9 +129,11 @@ let rec last = function
 | _ :: xs -> last xs
 
 (** Find the value for the hole `m` given a constraint equation of the form `m args = tm` (meaning that we'd expect `m` to become
-  a function that has at least `List.length args` arguments)
+  a function that has at least `List.length args` arguments). args must be unique free variables and term must not have any
+  non-matching free variables. 
   
-  Stores the computed solution for that hole in the `e.metas` hash table *)
+  Stores the computed solution m = lambda args => term (replacing the free variables in term with the corresponding bvar indices)
+  for that hole in the `e.metas` hash table *)
 let rec pattern_match_meta (e: ctx) (m: int) (args: term list) (tm: term) : unit =
   (* print_endline ("pattern matching meta " ^ string_of_int m ^ " with args " ^ String.concat " " (List.map (term_to_string e) args) ^ " against term " ^ term_to_string e tm); *)
   (* uhh get rid of the last matching args? *)
