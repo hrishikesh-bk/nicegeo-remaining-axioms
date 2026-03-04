@@ -1,19 +1,6 @@
 (library
  (name elab)
- (libraries kernel)
- (modules Convert
-          Decl
-          Error
-          Interface 
-          Kernel_pretty
-          Lexer
-          Nice_messages
-          Parser 
-          Pretty
-          Term
-          Typecheck
-          Types
-          ))
+ (libraries kernel))
 
  (ocamllex lexer)
  (menhir

@@ -10,10 +10,10 @@ let () =
   end;
 
   let filename = Sys.argv.(1) in
-  let env = Elab.create_with_env () in
+  let env = Elab.Interface.create_with_env () in
   let tone = Nice_messages.tone_from_env () in
   try
-    Elab.process_file env filename;
+    Elab.Interface.process_file env filename;
     print_endline "Valid proofs!"
   with Error.ElabError e ->
     print_endline
