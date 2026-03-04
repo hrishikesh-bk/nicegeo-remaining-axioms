@@ -216,7 +216,7 @@ and infertype (e: ctx) (tm: term) : term =
     | Sort _, _ -> raise_at ty_ret (Error.TypeExpected { not_type = ty_ret; not_type_infer = ty_ret_ty })
     | _ -> raise_at ty_arg (Error.TypeExpected { not_type = ty_arg; not_type_infer = ty_arg_ty }))
   | App (f, arg) ->
-    let f_type = infertype e f in
+    let f_type = whnf_beta e (infertype e f) in
     (match f_type.inner with
     | Arrow (_, ty_arg, ty_ret) ->
       check_is_type e ty_arg;
@@ -255,8 +255,8 @@ and check_is_type (e: ctx) (tm: term) : unit =
     check_is_type e ty_ret_fvar;
     Hashtbl.remove e.lctx x
   | App (f, arg) ->
-    let f_type = try Some (infertype e f) with Error.ElabError {error_type = Error.CannotInferHole; _} -> None in
-
+    let f_type = try Some (whnf_beta e (infertype e f)) with Error.ElabError {error_type = Error.CannotInferHole; _} -> None in
+    
     (match f_type with
     | Some {inner=Arrow (_, ty_arg, ty_ret); _} -> 
       (* print_endline ("app checktype: checking that " ^ term_to_string e arg ^ " has type " ^ term_to_string e ty_arg);
