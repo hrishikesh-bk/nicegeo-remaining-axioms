@@ -6,8 +6,8 @@ open Elab.Decl
 open Elab.Pretty
 module KTerm = Kernel.Term
 module ETerm = Elab.Term
-module Elab = Elab.Interface
 module Nice = Elab.Nice_messages
+module ElabIf = Elab.Interface
 
 let () = Printf.printf "=== Kernel term pretty-printing ===\n\n"
 
@@ -42,7 +42,7 @@ let () =
   Printf.printf "  Pretty: %s\n\n" (term_to_string_pretty t)
 
 let () = Printf.printf "=== Elaborator term pretty-printing ===\n\n"
-let e = Elab.create ()
+let e = ElabIf.create ()
 let l = ETerm.dummy_range
 
 (* Example 5: Elaborator terms have names already *)
