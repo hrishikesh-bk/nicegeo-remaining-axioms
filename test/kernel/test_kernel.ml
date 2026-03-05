@@ -691,7 +691,7 @@ let test_kernel_reduce () =
 
 let suite =
   let open Alcotest in
-  ( "system_e_kernel",
+  ( "kernel",
     [
       test_case "Constant lookup" `Quick test_const_lookup;
       test_case "Free variable lookup" `Quick test_fvar_lookup;
