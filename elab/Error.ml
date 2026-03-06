@@ -51,9 +51,9 @@ type elab_error_info = {
 
 exception ElabError of elab_error_info
 
-(* 
-* Suggestions and pretty-printing helpers 
-*)
+(*
+ * Suggestions and pretty-printing helpers
+ *)
 
 let levenshtein_distance (s : string) (t : string) : int =
   let m = String.length s in
@@ -69,8 +69,7 @@ let levenshtein_distance (s : string) (t : string) : int =
     for j = 1 to n do
       let cost = if s.[i - 1] = t.[j - 1] then 0 else 1 in
       dp.(i).(j) <-
-        min (min (dp.(i - 1).(j) + 1) (dp.(i).(j - 1) + 1))
-          (dp.(i - 1).(j - 1) + cost)
+        min (min (dp.(i - 1).(j) + 1) (dp.(i).(j - 1) + 1)) (dp.(i - 1).(j - 1) + cost)
     done
   done;
   dp.(m).(n)
@@ -81,24 +80,16 @@ let suggest_similar_names (unknown : string) (env : Types.ctx) : string list =
     (fun name _entry ->
       let dist = levenshtein_distance unknown name in
       let score =
-        if String.length unknown > 0 && String.length name > 0
-           && unknown.[0] = name.[0]
+        if String.length unknown > 0 && String.length name > 0 && unknown.[0] = name.[0]
         then dist - 1
         else dist
       in
       candidates := (name, score) :: !candidates)
     env.env;
-  let sorted =
-    List.sort (fun (_, d1) (_, d2) -> compare d1 d2) !candidates
-  in
-  sorted
-  |> List.filter (fun (_, d) -> d <= 3)
-  |> List.map fst
-  |> fun names ->
+  let sorted = List.sort (fun (_, d1) (_, d2) -> compare d1 d2) !candidates in
+  sorted |> List.filter (fun (_, d) -> d <= 3) |> List.map fst |> fun names ->
   let rec take k xs =
-    match (k, xs) with
-    | 0, _ | _, [] -> []
-    | k, x :: xs' -> x :: take (k - 1) xs'
+    match (k, xs) with 0, _ | _, [] -> [] | k, x :: xs' -> x :: take (k - 1) xs'
   in
   take 3 names
 
@@ -230,12 +221,10 @@ let pp_exn (e : Types.ctx) (info : elab_error_info) : string =
         decl_str
         loc_str
         (ktype_err_to_string kernel_exn)
-  | UnknownName { name } ->
-      let base =
-        Printf.sprintf "Unknown name '%s' in %s at %s" name decl_str loc_str
-      in
+  | UnknownName { name } -> (
+      let base = Printf.sprintf "Unknown name '%s' in %s at %s" name decl_str loc_str in
       let suggestions = suggest_similar_names name e in
-      (match suggestions with
+      match suggestions with
       | [] -> base
       | _ ->
           let sugg_str = String.concat ", " suggestions in
