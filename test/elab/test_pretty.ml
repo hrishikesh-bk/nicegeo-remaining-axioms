@@ -1,14 +1,11 @@
 (* Tests and examples for the pretty-printing feature.
    Run with: dune exec test/test_pretty.exe *)
 
-open Elab.Decl
 open Elab.Pretty
-module ETerm = Elab.Term
-module ElabIf = Elab.Interface
 
 let () = Printf.printf "=== Elaborator term pretty-printing ===\n\n"
-let e = ElabIf.create ()
-let l = ETerm.dummy_range
+let e = Elab.Interface.create ()
+let l = Elab.Term.dummy_range
 
 (* Example 1: Elaborator terms have names already *)
 let () =
@@ -19,16 +16,18 @@ let () =
 (* Example 2: Declaration pretty-printing *)
 let () =
   let d =
-    { name = "Point"; name_loc = l; ty = { ETerm.inner = Sort 1; loc = l }; kind = Axiom }
+    Elab.Decl.
+      { name = "Point"; name_loc = l; ty = { inner = Sort 1; loc = l }; kind = Axiom }
   in
   Printf.printf "Axiom Point : Type  =>  %s\n" (decl_to_string e d);
   let d2 =
-    {
-      name = "id";
-      name_loc = l;
-      ty = Util.(narrow "A" (sort 1) (narrow "x" (bvar 0) (bvar 1)));
-      kind = Theorem Util.(ufun (sort 1) (ufun (bvar 0) (bvar 0)));
-    }
+    Elab.Decl.
+      {
+        name = "id";
+        name_loc = l;
+        ty = Util.(narrow "A" (sort 1) (narrow "x" (bvar 0) (bvar 1)));
+        kind = Theorem Util.(ufun (sort 1) (ufun (bvar 0) (bvar 0)));
+      }
   in
   Printf.printf
     "Theorem id : (A : Type) -> (x : A) -> A := ...  => \n%s\n\n"
@@ -55,7 +54,7 @@ let test_elab_hole () =
     Alcotest.string
     ~msg:"Hole 0 pretty-prints as ?m0"
     ~expected:"?m0"
-    ~actual:(term_to_string e { ETerm.inner = Hole 0; loc = l })
+    ~actual:(term_to_string e { inner = Hole 0; loc = l })
 
 let test_elab_arrow_no_name () =
   let t = Util.(uarrow (sort 1) (sort 0)) in
