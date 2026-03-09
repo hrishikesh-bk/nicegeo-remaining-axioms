@@ -21,3 +21,6 @@ val messages_for : tone -> context -> string list
 val pick_message : tone -> context -> string option
 (** Pick a random message for the given tone and context, or [None] if no messages exist.
 *)
+
+val format_for_output : string -> string
+(** Adds newlines to a message for output. *)

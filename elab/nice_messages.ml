@@ -59,3 +59,5 @@ let pick_message tone ctx : string option =
       let len = List.length lst in
       let idx = Random.int len in
       Some (List.nth lst idx)
+
+let format_for_output (msg : string) : string = "\n" ^ msg ^ "\n\n"
