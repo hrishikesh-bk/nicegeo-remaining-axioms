@@ -555,26 +555,21 @@ let process_decl (e : ctx) (d : declaration) : unit =
         (* print all axioms *)
         if prop_name = "all" then begin
           print_endline "--- Axioms ---";
-          Hashtbl.iter (fun name record ->
-            match record.data with
-            | Axiom -> print_endline name
-            | _ -> ()
-          ) e.env;
-          print_endline "--------------"
-        (* print axioms used in specified proposition *)
-        end else begin
-          (match Hashtbl.find_opt e.env prop_name with
-          | Some record ->
-              (match record.data with
+          Hashtbl.iter
+            (fun name record ->
+              match record.data with Axiom -> print_endline name | _ -> ())
+            e.env;
+          print_endline "--------------" (* print axioms used in specified proposition *)
+        end
+        else begin
+          match Hashtbl.find_opt e.env prop_name with
+          | Some record -> (
+              match record.data with
               | Theorem used_axioms ->
                   print_endline ("Axioms used in " ^ prop_name ^ ":");
                   List.iter print_endline used_axioms
-              | Axiom ->
-                  print_endline (prop_name ^ " is an axiom itself.")
-              )
-          | None ->
-              print_endline ("Error: Proposition '" ^ prop_name ^ "' not found.")
-          )
+              | Axiom -> print_endline (prop_name ^ " is an axiom itself."))
+          | None -> print_endline ("Error: Proposition '" ^ prop_name ^ "' not found.")
         end
     | Infer t ->
         (* create hole for elaborator to solve *)
@@ -597,7 +592,9 @@ let process_decl (e : ctx) (d : declaration) : unit =
         checktype e t_meta ty_filled;
         let _ = replace_metas e t_meta in
         Hashtbl.clear e.metas;
-        print_endline ("#check successful: Term is well-typed as " ^ Pretty.term_to_string_with e [] ty_filled)
+        print_endline
+          ("#check successful: Term is well-typed as "
+          ^ Pretty.term_to_string_with e [] ty_filled)
     | Reduce t ->
         (* convert term to kernel format *)
         let t_meta = hole_to_meta e [] t in

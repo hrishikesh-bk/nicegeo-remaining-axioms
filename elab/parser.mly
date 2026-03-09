@@ -16,13 +16,13 @@ declaration:
   | AXIOM name = IDENT COLON ty = term { Decl.{name=name; name_loc={ Term.start = $startpos(name); Term.end_ = $endpos(name) }; ty; kind=Axiom} }
   | THEOREM name = IDENT COLON ty = term DEFEQ proof = term
     { Decl.{name=name; name_loc={ Term.start = $startpos(name); Term.end_ = $endpos(name) }; ty; kind=Theorem proof} }
-  (* print all axioms: #print axioms*)
+  (* print all axioms: #print axioms *)
   | PRINT_DIRECTIVE _arg = IDENT prop = IDENT
     { Decl.{name="#print"; name_loc={ Term.start = $startpos(_arg); Term.end_ = $endpos(prop) }; ty={inner=Term.Sort 0; loc=Term.dummy_range}; kind=PrintAxioms prop} }
   (* print all axioms used in proposition: #print axioms prop1 *)
   | PRINT_DIRECTIVE _arg = IDENT
     { Decl.{name="#print"; name_loc={ Term.start = $startpos(_arg); Term.end_ = $endpos(_arg) }; ty={inner=Term.Sort 0  ; loc=Term.dummy_range}; kind=PrintAxioms "all"} }
-  (* print infered types in proposition: #infer prop1 *)
+  (* print inferred types in proposition: #infer prop1 *)
   | INFER_DIRECTIVE t = term
     { Decl.{name="#infer"; name_loc={ Term.start = $startpos(t); Term.end_ = $endpos(t) }; ty={inner=Term.Sort 0; loc=Term.dummy_range}; kind=Infer t} }
   (* verify term against type: #check (fun (x : Point) => x) : (Point -> Point) *)
