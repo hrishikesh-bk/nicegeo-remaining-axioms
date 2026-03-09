@@ -22,17 +22,7 @@ let create_with_env () : Types.ctx = create_with_env_path "elab/env.txt"
 
 let parse_term (s : string) : Term.term =
   let lexbuf = Lexing.from_string s in
-  try Parser.single_term Lexer.token lexbuf
-  with exn ->
-    let msg = match exn with Failure msg -> msg | _ -> Printexc.to_string exn in
-    let pos1 = lexbuf.lex_start_p in
-    let pos2 = lexbuf.lex_curr_p in
-    raise
-      (Error.ElabError
-         {
-           context = { loc = Some { start = pos1; end_ = pos2 }; decl_name = None };
-           error_type = Error.ParseError { input = Lexing.lexeme lexbuf; error_msg = msg };
-         })
+  Parser.single_term Lexer.token lexbuf
 
 let parse_decls (filename : string) : Decl.declaration list =
   let ic = open_in filename in

@@ -12,8 +12,7 @@ val create_with_env : unit -> Types.ctx
     at ["elab/env.txt"]. *)
 
 val parse_term : string -> Term.term
-(** [parse_term s] parses a single term from the string [s]. Raises [Error.ElabError] on
-    parse errors. *)
+(** [parse_term s] parses a single term from the string [s]. *)
 
 val parse_decls : string -> Decl.declaration list
 (** [parse_decls filename] parses all declarations from the file [filename]. Raises
