@@ -190,6 +190,9 @@ let rec inferType (env : environment) (localCtx : localcontext) (t : term) : ter
           raise (TypeError { env; ctx; trm; err_kind }))
   | Sort level -> Sort (level + 1)
 
+(** The internal kernal functionality is exposed in an Internals module for testing
+    purposes. These functions are not meant to be interacted with by non-kernel code
+    otherwise, but OCaml does not have a good way to enforce this. *)
 module Internals = struct
   let subst_bvar = subst_bvar
   let rebind_bvar = rebind_bvar
