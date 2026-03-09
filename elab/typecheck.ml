@@ -551,6 +551,63 @@ let process_decl (e : ctx) (d : declaration) : unit =
           let ty_k = conv_to_kterm ty_filled in
           Hashtbl.add e.env d.name { name = d.name; ty = ty_filled; data = Axiom };
           Hashtbl.add e.kenv d.name ty_k
+    | PrintAxioms prop_name ->
+        (* print all axioms *)
+        if prop_name = "all" then begin
+          print_endline "--- Axioms ---";
+          Hashtbl.iter (fun name record ->
+            match record.data with
+            | Axiom -> print_endline name
+            | _ -> ()
+          ) e.env;
+          print_endline "--------------"
+        (* print axioms used in specified proposition *)
+        end else begin
+          (match Hashtbl.find_opt e.env prop_name with
+          | Some record ->
+              (match record.data with
+              | Theorem used_axioms ->
+                  print_endline ("Axioms used in " ^ prop_name ^ ":");
+                  List.iter print_endline used_axioms
+              | Axiom ->
+                  print_endline (prop_name ^ " is an axiom itself.")
+              )
+          | None ->
+              print_endline ("Error: Proposition '" ^ prop_name ^ "' not found.")
+          )
+        end
+    | Infer t ->
+        (* create hole for elaborator to solve *)
+        let t_meta = hole_to_meta e [] t in
+        (* convert to kernel term and call kernel to infer type *)
+        let t_k = conv_to_kterm (replace_metas e t_meta) in
+        let inferredType_k = KInfer.inferType e.kenv (Hashtbl.create 0) t_k in
+        (* convert back from kernel term and print *)
+        let ty_term = Convert.kterm_to_term inferredType_k in
+        print_endline ("#infer: " ^ Pretty.term_to_string_with e [] ty_term)
+    | Check (t, ty) ->
+        (* process provided type to make sure valid type *)
+        let ty_meta = hole_to_meta e [] ty in
+        check_is_type e ty_meta;
+        let ty_filled = replace_metas e ty_meta in
+        Hashtbl.clear e.metas;
+        (* process term provided *)
+        let t_meta = hole_to_meta e [] t in
+        (* call elaborator to check if term matches type *)
+        checktype e t_meta ty_filled;
+        let _ = replace_metas e t_meta in
+        Hashtbl.clear e.metas;
+        print_endline ("#check successful: Term is well-typed as " ^ Pretty.term_to_string_with e [] ty_filled)
+    | Reduce t ->
+        (* convert term to kernel format *)
+        let t_meta = hole_to_meta e [] t in
+        let t_k = conv_to_kterm (replace_metas e t_meta) in
+        (* call kernel to reduce term until simplified *)
+        (* pass empty local context since directive is on top level *)
+        let reduced_k = Kernel.Infer.reduce e.kenv (Hashtbl.create 0) t_k in
+        (* convert from kernel and print *)
+        let reduced_term = Convert.kterm_to_term reduced_k in
+        print_endline ("#reduce: " ^ Pretty.term_to_string_with e [] reduced_term)
   with Error.ElabError x ->
     raise
       (Error.ElabError { x with context = { x.context with decl_name = Some d.name } })

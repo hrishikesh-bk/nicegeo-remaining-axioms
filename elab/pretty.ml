@@ -124,3 +124,7 @@ let decl_to_string (e : Types.ctx) (d : declaration) =
   | Theorem proof ->
       "Theorem " ^ d.name ^ " : " ^ term_to_string e d.ty ^ " := "
       ^ term_to_string e proof
+  | PrintAxioms prop -> "#print axioms " ^ prop
+  | Infer t -> "#infer " ^ term_to_string e t
+  | Check (t, ty) -> "#check " ^ term_to_string e t ^ " : " ^ term_to_string e ty
+  | Reduce t -> "#reduce " ^ term_to_string e t
