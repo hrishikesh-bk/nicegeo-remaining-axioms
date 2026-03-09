@@ -17,9 +17,6 @@ val default_tone : tone
     [default_tone] if absent or unrecognised. *)
 val tone_from_env : unit -> tone
 
-(** Return all available messages for the given tone and context. *)
-val messages_for : tone -> context -> string list
-
 (** Pick a random message for the given tone and context, or [None] if no messages exist.
 *)
 val pick_message : tone -> context -> string option

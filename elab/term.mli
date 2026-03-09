@@ -6,9 +6,6 @@ type range = {
   end_ : Lexing.position;
 }
 
-(** A dummy position for when no location information is available. *)
-val dummy_pos : Lexing.position
-
 (** A dummy range for when no location information is available. *)
 val dummy_range : range
 
