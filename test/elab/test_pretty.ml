@@ -47,7 +47,7 @@ let l = ETerm.dummy_range
 
 (* Example 5: Elaborator terms have names already *)
 let () =
-  let t = Testterm.(nfun "A" (sort 1) (nfun "B" (sort 0) (bvar 0))) in
+  let t = Util.(nfun "A" (sort 1) (nfun "B" (sort 0) (bvar 0))) in
   Printf.printf "Elab term (A : Type) -> (B : Prop) -> B:\n";
   Printf.printf "  %s\n\n" (term_to_string e t)
 
@@ -61,8 +61,8 @@ let () =
     {
       name = "id";
       name_loc = l;
-      ty = Testterm.(narrow "A" (sort 1) (narrow "x" (bvar 0) (bvar 1)));
-      kind = Theorem Testterm.(ufun (sort 1) (ufun (bvar 0) (bvar 0)));
+      ty = Util.(narrow "A" (sort 1) (narrow "x" (bvar 0) (bvar 1)));
+      kind = Theorem Util.(ufun (sort 1) (ufun (bvar 0) (bvar 0)));
     }
   in
   Printf.printf
@@ -74,8 +74,7 @@ let test_lam_flattening () =
     Alcotest.string
     ~msg:"Lambda args pretty-prints flattened"
     ~expected:"fun (x : A) (y : B) => x"
-    ~actual:
-      (term_to_string e Testterm.(nfun "x" (name "A") (nfun "y" (name "B") (bvar 1))));
+    ~actual:(term_to_string e Util.(nfun "x" (name "A") (nfun "y" (name "B") (bvar 1))));
 
   Alcotest.check'
     Alcotest.string
@@ -84,7 +83,7 @@ let test_lam_flattening () =
     ~actual:
       (term_to_string
          e
-         Testterm.(nfun "x" (name "A") (nfun "y" (app (name "B") (bvar 0)) (bvar 0))))
+         Util.(nfun "x" (name "A") (nfun "y" (app (name "B") (bvar 0)) (bvar 0))))
 
 let test_kernel_sort_names () =
   Alcotest.check'
@@ -107,7 +106,7 @@ let test_elab_hole () =
     ~actual:(term_to_string e { ETerm.inner = Hole 0; loc = l })
 
 let test_elab_arrow_no_name () =
-  let t = Testterm.(uarrow (sort 1) (sort 0)) in
+  let t = Util.(uarrow (sort 1) (sort 0)) in
   Alcotest.check'
     Alcotest.string
     ~msg:"arrow pretty-prints sorts"
