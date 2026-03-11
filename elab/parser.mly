@@ -2,34 +2,37 @@
 %token FUN FORALL ARROW COLON LPAREN RPAREN TYPE PROP EOF UNDERSCORE
 %token THEOREM AXIOM DEFEQ
 %token PRINT_DIRECTIVE INFER_DIRECTIVE CHECK_DIRECTIVE REDUCE_DIRECTIVE
-%start <Decl.declaration list> main
+%start <Decl.statement list> main
 %start <Term.term> single_term
 %%
 
 main:
-  | decls = list(declaration) EOF { decls }
+  | stmts = list(statement) EOF { stmts }
 
 single_term:
   | t = term EOF { t }
+
+statement:
+  | d = declaration { Decl.Declaration d }
+  | d = directive { Decl.Directive d }
 
 declaration:
   | AXIOM name = IDENT COLON ty = term { Decl.{name=name; name_loc={ Term.start = $startpos(name); Term.end_ = $endpos(name) }; ty; kind=Axiom} }
   | THEOREM name = IDENT COLON ty = term DEFEQ proof = term
     { Decl.{name=name; name_loc={ Term.start = $startpos(name); Term.end_ = $endpos(name) }; ty; kind=Theorem proof} }
-  (* print all axioms: #print axioms *)
-  | PRINT_DIRECTIVE _arg = IDENT prop = IDENT
-    { Decl.{name="#print"; name_loc={ Term.start = $startpos(_arg); Term.end_ = $endpos(prop) }; ty={inner=Term.Sort 0; loc=Term.dummy_range}; kind=PrintAxioms prop} }
+
+directive:
   (* print all axioms used in proposition: #print axioms prop1 *)
-  | PRINT_DIRECTIVE _arg = IDENT
-    { Decl.{name="#print"; name_loc={ Term.start = $startpos(_arg); Term.end_ = $endpos(_arg) }; ty={inner=Term.Sort 0  ; loc=Term.dummy_range}; kind=PrintAxioms "all"} }
+  | PRINT_DIRECTIVE _arg = IDENT prop = IDENT
+    { Decl.PrintAxioms (prop, { Term.start = $startpos(_arg); Term.end_ = $endpos(prop) }) }
   (* print inferred types in proposition: #infer prop1 *)
   | INFER_DIRECTIVE t = term
-    { Decl.{name="#infer"; name_loc={ Term.start = $startpos(t); Term.end_ = $endpos(t) }; ty={inner=Term.Sort 0; loc=Term.dummy_range}; kind=Infer t} }
+    { Decl.Infer (t, { Term.start = $startpos(t); Term.end_ = $endpos(t) }) }
   (* verify term against type: #check (fun (x : Point) => x) : (Point -> Point) *)
   | CHECK_DIRECTIVE t = term COLON ty = term
-    { Decl.{name="#check"; name_loc={ Term.start = $startpos(t); Term.end_ = $endpos(ty) }; ty={inner=Term.Sort 0; loc=Term.dummy_range}; kind=Check (t, ty)} }
+    { Decl.Check (t, ty, { Term.start = $startpos(t); Term.end_ = $endpos(ty) }) }
   | REDUCE_DIRECTIVE t = term
-    { Decl.{name="#reduce"; name_loc={ Term.start = $startpos(t); Term.end_ = $endpos(t) }; ty={inner=Term.Sort 0; loc=Term.dummy_range}; kind=Reduce t} }
+    { Decl.Reduce (t, { Term.start = $startpos(t); Term.end_ = $endpos(t) }) }
 
 term:
   | t = app_term { t }

@@ -3,10 +3,6 @@ open Term
 type decl_type =
   | Theorem of term
   | Axiom
-  | PrintAxioms of string
-  | Infer of term
-  | Check of term * term
-  | Reduce of term
 
 type declaration = {
   name : string;
@@ -14,3 +10,13 @@ type declaration = {
   ty : term;
   kind : decl_type;
 }
+
+type directive =
+  | PrintAxioms of string * range
+  | Infer of term * range
+  | Check of term * term * range
+  | Reduce of term * range
+
+type statement =
+  | Declaration of declaration
+  | Directive of directive

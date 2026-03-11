@@ -326,4 +326,7 @@ Theorem AddCancel : (x: Len) -> (y: Len) -> (z: Len) -> Eq _ (Add x z) (Add y z)
     (fun (eqxy : Eq _ x y) => eqxy)
     )
 
+#print axioms prop1
+#infer prop1
+#check (fun (x : Point) => x) : (Point -> Point)
 #reduce (fun (x : Point) => x) (fun (y : Point) => y)

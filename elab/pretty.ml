@@ -47,6 +47,23 @@ let rec flatten_fun (t : term) (bctx : string list) (fmt : string list -> term -
       (binder :: binders, new_body, new_bctx)
   | _ -> ([], t, bctx)
 
+let pp_loc (r : range) =
+  if r.start.pos_lnum = r.end_.pos_lnum then
+    Printf.sprintf
+      "%s:%d:%d-%d"
+      r.start.pos_fname
+      r.start.pos_lnum
+      (r.start.pos_cnum - r.start.pos_bol + 1)
+      (r.end_.pos_cnum - r.end_.pos_bol + 1)
+  else
+    Printf.sprintf
+      "%s:%d:%d to %d:%d"
+      r.start.pos_fname
+      r.start.pos_lnum
+      (r.start.pos_cnum - r.start.pos_bol + 1)
+      r.end_.pos_lnum
+      (r.end_.pos_cnum - r.end_.pos_bol + 1)
+
 let bvar_to_string (bctx : string list) (idx : int) : string =
   if idx < List.length bctx then List.nth bctx idx else "_" ^ string_of_int idx
 
@@ -124,7 +141,3 @@ let decl_to_string (e : Types.ctx) (d : declaration) =
   | Theorem proof ->
       "Theorem " ^ d.name ^ " : " ^ term_to_string e d.ty ^ " := "
       ^ term_to_string e proof
-  | PrintAxioms prop -> "#print axioms " ^ prop
-  | Infer t -> "#infer " ^ term_to_string e t
-  | Check (t, ty) -> "#check " ^ term_to_string e t ^ " : " ^ term_to_string e ty
-  | Reduce t -> "#reduce " ^ term_to_string e t
