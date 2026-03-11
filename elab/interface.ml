@@ -29,7 +29,7 @@ let parse_term (s : string) : Term.term =
   let lexbuf = Lexing.from_string s in
   Parser.single_term Lexer.token lexbuf
 
-let parse_decls (filename : string) : Statement.statement list =
+let parse_statements (filename : string) : Statement.statement list =
   let ic = open_in filename in
   let lexbuf = Lexing.from_channel ic in
   Lexing.set_filename lexbuf filename;
@@ -50,7 +50,7 @@ let parse_decls (filename : string) : Statement.statement list =
   decls
 
 let process_file (env : Types.ctx) (filename : string) : unit =
-  let stmts = parse_decls filename in
+  let stmts = parse_statements filename in
   List.iter (process_statement env) stmts
 
 (* Returns the list of axioms used by the theorem `name`. *)
