@@ -3,16 +3,17 @@
 
 (** Kernel representation of terms *)
 type term =
-  | Const of string  (** constants *)
-  | Bvar of int  (** bound variables *)
-  | Fvar of string  (** free variables *)
-  | Lam of term * term  (** functions *)
-  | Forall of term * term  (** function types *)
-  | App of term * term  (** function application *)
-  | Sort of int  (** sorts *)
+  | Const of string  (** [Const(name)] represents a constant named [name]. *)
+  | Bvar of int  (** [Bvar(idx)] represents a bound variable with index [idx]. *)
+  | Fvar of string  (** [Fvar(name)] represents a free variable named [name]. *)
+  | Lam of term * term  (** [Lam(domain_type, body)] represents a lambda abstraction. *)
+  | Forall of term * term
+      (** [Forall(domain_type, return_type)] represents a dependent function type. *)
+  | App of term * term  (** [App(func, arg)] represents applying [func] to [arg]. *)
+  | Sort of int  (** [Sort(level)] represents a universe level. **)
 
-type environment = (string, term) Hashtbl.t
 (** Maps constants to their types *)
+type environment = (string, term) Hashtbl.t
 
-type localcontext = (string, term) Hashtbl.t
 (** Maps free variable names to their types *)
+type localcontext = (string, term) Hashtbl.t
